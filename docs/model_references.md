@@ -31,6 +31,19 @@ an entry here in its module docstring.
 - Cunningham JJ. "A reanalysis of the factors influencing basal metabolic
   rate in normal adults." *Am J Clin Nutr.* 1980;33(11):2372-2374.
 
+## Physical activity / TDEE multiplier scheme (`models.tdee`) — Phase 5
+
+- Mahan LK, Raymond JL, eds. *Krause's Food & the Nutrition Care
+  Process.* Elsevier. (Widely reproduced table of clinical activity
+  factors used to scale BMR to TDEE: 1.2 / 1.375 / 1.55 / 1.725 / 1.9
+  for sedentary / light / moderate / active / very active.)
+- Institute of Medicine (US). *Dietary Reference Intakes for Energy...*
+  National Academies Press; 2005. (Alternative four-tier PAL banding;
+  noted as a documented limitation -- see
+  ``metabosim.models.tdee.pal_multiplier`` module docstring -- and
+  planned as an explicit alternative model once
+  ``metabosim.models.activity`` (Phase 7) is built.)
+
 ## TDEE / Activity models (`models.tdee`, `models.activity`) — Phases 5, 7
 
 - Institute of Medicine (US). *Dietary Reference Intakes for Energy,

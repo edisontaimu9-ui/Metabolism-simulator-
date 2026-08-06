@@ -5,6 +5,25 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 5: TDEE engine
+- `metabosim.models.tdee.base.TDEEModel` — abstract strategy interface
+  for BMR-to-TDEE scaling.
+- `metabosim.models.tdee.pal_multiplier.PALMultiplierTDEE` — traditional
+  five-tier clinical activity multiplier (1.2-1.9), cited, with an
+  explicit documented caveat about TEF double-counting once Phase 6
+  lands.
+- `metabosim.models.tdee.registry` — runtime model lookup by string ID.
+- `metabosim.models.tdee.calculator.calculate_tdee()` — the TDEE
+  engine entry point composing BMR selection + TDEE scaling into a
+  single `TDEEResult` (BMR figure, TDEE figure, both strategy names).
+- 33 unit tests, 98% coverage on `models.tdee`; `mypy --strict`,
+  `black`, `ruff` all clean.
+- Fixed a pytest import-collision bug (duplicate `test_base.py` /
+  `test_registry.py` basenames across `models/bmr` and `models/tdee`
+  test directories) by switching to `--import-mode=importlib`.
+- `docs/phase_notes/phase_05.md`; `docs/model_references.md` updated
+  with the activity-multiplier citation.
+
 ### Added — Phase 4: BMR equations
 - `metabosim.models.bmr.base.BMRModel` — abstract interface for all
   BMR/RMR strategies (`calculate()`, `name`, `requires_body_fat`,
