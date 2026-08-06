@@ -5,6 +5,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 4: BMR equations
+- `metabosim.models.bmr.base.BMRModel` — abstract interface for all
+  BMR/RMR strategies (`calculate()`, `name`, `requires_body_fat`,
+  `__call__` alias).
+- Four equations, each in its own module with full citation and
+  documented limitations: `MifflinStJeorBMR`, `HarrisBenedictBMR`,
+  `KatchMcArdleBMR`, `CunninghamBMR`.
+- `metabosim.models.bmr.registry` — `get_model()`, `list_models()`,
+  `register_model()` for runtime model selection by string ID.
+- 45 new unit tests (99 total project-wide): per-equation reference
+  values, base-contract tests, registry tests, and a cross-model
+  plausibility suite. 99% statement coverage on `models.bmr`.
+- `docs/phase_notes/phase_04.md`.
+
 ### Added — Phase 3: Data models
 - `metabosim.domain.constants` — physiological validation bounds and
   Atwater general energy factors, each cited (FAO 2003, IOM 2005,
