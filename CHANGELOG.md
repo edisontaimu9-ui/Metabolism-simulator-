@@ -5,6 +5,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 6: Thermic Effect of Food
+- `metabosim.models.tef.base.TEFModel` — abstract strategy interface.
+- `metabosim.models.tef.macronutrient_specific.MacronutrientSpecificTEF`
+  — weighted, per-macronutrient thermic cost model (protein 25% /
+  carbohydrate 7.5% / fat 2% / alcohol 20%, midpoints from Jequier &
+  Tappy 1999), with a documented fiber-approximation caveat.
+- `metabosim.models.tef.fixed_percentage.FixedPercentageTEF` — flat
+  ~10%-of-intake approximation (IOM, 2005), for when macronutrient
+  breakdown is unavailable.
+- `metabosim.models.tef.registry` — runtime model lookup by string ID.
+- 23 unit tests, 98% coverage on `models.tef`; `mypy --strict`,
+  `black`, `ruff` all clean.
+- Documented (not yet implemented) integration plan for combining TEF
+  with `calculate_tdee()` without double-counting food-processing
+  energy cost — deferred pending Phase 7's activity model.
+- `docs/phase_notes/phase_06.md`; `docs/model_references.md` updated
+  with full TEF citations.
+
 ### Added — Phase 5: TDEE engine
 - `metabosim.models.tdee.base.TDEEModel` — abstract strategy interface
   for BMR-to-TDEE scaling.

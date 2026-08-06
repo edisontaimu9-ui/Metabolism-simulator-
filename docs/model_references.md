@@ -55,7 +55,15 @@ an entry here in its module docstring.
 ## Thermic Effect of Food (`models.tef`) — Phase 6
 
 - Jequier E, Tappy L. "Regulation of body weight in humans."
-  *Physiol Rev.* 1999;79(2):451-480.
+  *Physiol Rev.* 1999;79(2):451-480. (Macronutrient-specific thermic
+  cost ranges: protein 20-30%, carbohydrate 5-10%, fat 0-3%, alcohol
+  10-30% of that macronutrient's own energy contribution. This
+  project uses the midpoint of each range --
+  ``metabosim.models.tef.macronutrient_specific``.)
+- Institute of Medicine (US). *Dietary Reference Intakes for Energy...*
+  National Academies Press; 2005. (Commonly-used ~10%-of-total-intake
+  approximation, used when macronutrient breakdown is unavailable --
+  ``metabosim.models.tef.fixed_percentage``.)
 
 ## Energy balance (`models.energy_balance`) — Phase 8
 
