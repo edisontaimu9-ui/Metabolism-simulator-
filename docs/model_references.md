@@ -4,6 +4,20 @@ Running bibliography, keyed by model/module. Updated every phase as
 models are implemented. Every equation in `metabosim.models.*` must cite
 an entry here in its module docstring.
 
+## Domain layer constants (`metabosim.domain.constants`) — Phase 3
+
+- FAO. "Food energy -- methods of analysis and conversion factors."
+  FAO Food and Nutrition Paper 77. Rome; 2003. (Atwater general energy
+  factors: 4/4/9/2/7 kcal per gram of protein/carbohydrate/fat/fiber/
+  alcohol.)
+- Institute of Medicine (US). *Dietary Reference Intakes for Energy...*
+  National Academies Press; 2005. (Cross-referenced for Atwater factor
+  consistency.)
+- Gallagher D, Heymsfield SB, Heo M, et al. "Healthy percentage body
+  fat ranges: an approach for developing guidelines based on body mass
+  index." *Am J Clin Nutr.* 2000;72(3):694-701. (Basis for the
+  essential-fat lower bound used in body fat % validation.)
+
 ## BMR / RMR models (`models.bmr`) — Phase 4
 
 - Mifflin MD, St Jeor ST, Hill LA, et al. "A new predictive equation for
