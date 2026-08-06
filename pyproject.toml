@@ -68,7 +68,7 @@ packages = ["metabosim"]
 minversion = "8.0"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-ra -q --strict-markers"
+addopts = "-ra -q --strict-markers --import-mode=importlib"
 markers = [
     "unit: fast, isolated unit tests",
     "integration: multi-module integration tests",
