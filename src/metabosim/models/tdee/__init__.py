@@ -2,19 +2,28 @@
 metabosim.models.tdee
 ========================
 
-TDEE (Total Daily Energy Expenditure) model strategies, plus the
-composition "engine" that wires a chosen BMR model together with a
-chosen TDEE model.
+TDEE (Total Daily Energy Expenditure) model strategies, plus two
+composition "engines" that wire chosen component models together.
 
-  - ``base``          -- ``TDEEModel``, the common strategy interface.
+  - ``base``          -- ``TDEEModel``, the common strategy interface
+    for BMR-to-TDEE scaling.
   - ``pal_multiplier`` -- ``PALMultiplierTDEE``; scales BMR by a
     traditional five-tier clinical activity multiplier (1.2-1.9).
-    Currently the only registered strategy; see its module docstring
-    for important caveats around TEF double-counting once Phase 6
-    introduces an explicit TEF model.
-  - ``registry``      -- runtime lookup of TDEE models by string ID.
-  - ``calculator``    -- ``calculate_tdee()``, the primary public
-    entry point: ``Person`` in, fully-explained ``TDEEResult`` out.
+    Bundles an average TEF implicitly -- see its module docstring.
+  - ``registry``      -- runtime lookup of TDEE (scaling) models by
+    string ID.
+  - ``calculator``    -- two entry points:
+
+    - ``calculate_tdee()`` -- ``Person`` in, fully-explained
+      ``TDEEResult`` out, using a single bundled BMR-to-TDEE
+      multiplier (Phase 5 approach).
+    - ``calculate_tdee_from_components()`` -- ``Person`` + diet +
+      activity log in, fully-explained ``ComponentTDEEResult`` out,
+      summing independently-computed BMR + Activity Energy
+      Expenditure + Thermic Effect of Food (Phase 6/7 approach). This
+      is the composition that correctly avoids double-counting TEF,
+      by requiring a MET-based (not PAL-ratio-based) activity model --
+      see ``metabosim.models.activity.base`` for why.
 
 Example
 -------
@@ -31,10 +40,14 @@ Example
 
 from metabosim.models.tdee.base import TDEEModel
 from metabosim.models.tdee.calculator import (
+    DEFAULT_ACTIVITY_MODEL_ID,
     DEFAULT_BMR_MODEL_ID,
     DEFAULT_TDEE_MODEL_ID,
+    DEFAULT_TEF_MODEL_ID,
+    ComponentTDEEResult,
     TDEEResult,
     calculate_tdee,
+    calculate_tdee_from_components,
 )
 from metabosim.models.tdee.pal_multiplier import (
     PALMultiplierTDEE,
@@ -43,12 +56,16 @@ from metabosim.models.tdee.pal_multiplier import (
 from metabosim.models.tdee.registry import get_model, list_models, register_model
 
 __all__ = [
+    "DEFAULT_ACTIVITY_MODEL_ID",
     "DEFAULT_BMR_MODEL_ID",
     "DEFAULT_TDEE_MODEL_ID",
+    "DEFAULT_TEF_MODEL_ID",
+    "ComponentTDEEResult",
     "PALMultiplierTDEE",
     "TDEEModel",
     "TDEEResult",
     "calculate_tdee",
+    "calculate_tdee_from_components",
     "get_activity_multiplier",
     "get_model",
     "list_models",
