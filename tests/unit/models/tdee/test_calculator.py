@@ -94,3 +94,110 @@ class TestTDEEResultShape:
         assert result.bmr_model_name
         assert result.tdee_model_id
         assert result.tdee_model_name
+
+
+@pytest.mark.unit
+class TestCalculateTDEEFromComponents:
+    """Tests for calculate_tdee_from_components, the Phase 7 function
+    that composes BMR + Activity + TEF independently, resolving the
+    double-counting caveat flagged in Phases 5 and 6.
+    """
+
+    def test_reference_value_with_met_based_activity(
+        self, moderate_male: Person
+    ) -> None:
+        from metabosim.domain.diet import MacronutrientGrams
+        from metabosim.models.activity import ActivityEntry
+        from metabosim.models.tdee.calculator import calculate_tdee_from_components
+
+        macros = MacronutrientGrams(
+            protein_g=150, carbohydrate_g=300, fat_g=80, fiber_g=30
+        )
+        entries = [ActivityEntry(met=6.0, duration_hours=1.0, label="jogging")]
+
+        result = calculate_tdee_from_components(
+            moderate_male,
+            macros,
+            activity_model_kwargs={"entries": entries},
+        )
+
+        # BMR: 1780.0 (Mifflin-St Jeor)
+        # Activity: (6-1)*80*1 = 400.0
+        # TEF: 150*4*0.25 + (300*4+30*2)*0.075 + 80*9*0.02 = 258.9
+        # TDEE: 1780 + 400 + 258.9 = 2438.9
+        assert result.bmr_kcal == pytest.approx(1780.0)
+        assert result.activity_kcal == pytest.approx(400.0)
+        assert result.tef_kcal == pytest.approx(258.9)
+        assert result.tdee_kcal == pytest.approx(2438.9)
+
+    def test_components_sum_to_tdee(self, moderate_male: Person) -> None:
+        from metabosim.domain.diet import MacronutrientGrams
+        from metabosim.models.activity import ActivityEntry
+        from metabosim.models.tdee.calculator import calculate_tdee_from_components
+
+        macros = MacronutrientGrams(protein_g=100, carbohydrate_g=200, fat_g=60)
+        entries = [ActivityEntry(met=4.0, duration_hours=1.5)]
+
+        result = calculate_tdee_from_components(
+            moderate_male, macros, activity_model_kwargs={"entries": entries}
+        )
+        assert result.tdee_kcal == pytest.approx(
+            result.bmr_kcal + result.activity_kcal + result.tef_kcal
+        )
+
+    def test_empty_activity_log_still_works(self, moderate_male: Person) -> None:
+        from metabosim.domain.diet import MacronutrientGrams
+        from metabosim.models.tdee.calculator import calculate_tdee_from_components
+
+        macros = MacronutrientGrams(protein_g=100, carbohydrate_g=200, fat_g=60)
+        result = calculate_tdee_from_components(
+            moderate_male, macros, activity_model_kwargs={"entries": []}
+        )
+        assert result.activity_kcal == pytest.approx(0.0)
+        assert result.tdee_kcal == pytest.approx(result.bmr_kcal + result.tef_kcal)
+
+    def test_iom_pal_activity_model_rejected_with_clear_error(
+        self, moderate_male: Person
+    ) -> None:
+        # This is the core safety guarantee of this function: using an
+        # activity model that already bundles an average TEF must
+        # raise, not silently double-count.
+        from metabosim.domain.diet import MacronutrientGrams
+        from metabosim.models.tdee.calculator import calculate_tdee_from_components
+
+        macros = MacronutrientGrams(protein_g=100, carbohydrate_g=200, fat_g=60)
+        with pytest.raises(ValueError, match="double-count"):
+            calculate_tdee_from_components(
+                moderate_male, macros, activity_model_id="iom_pal"
+            )
+
+    def test_unknown_tef_model_id_raises(self, moderate_male: Person) -> None:
+        from metabosim.domain.diet import MacronutrientGrams
+        from metabosim.models.tdee.calculator import calculate_tdee_from_components
+
+        macros = MacronutrientGrams(protein_g=100, carbohydrate_g=200, fat_g=60)
+        with pytest.raises(KeyError):
+            calculate_tdee_from_components(
+                moderate_male,
+                macros,
+                activity_model_kwargs={"entries": []},
+                tef_model_id="not_a_real_model",
+            )
+
+    def test_result_is_frozen(self, moderate_male: Person) -> None:
+        from pydantic import ValidationError
+
+        from metabosim.domain.diet import MacronutrientGrams
+        from metabosim.models.tdee.calculator import calculate_tdee_from_components
+
+        macros = MacronutrientGrams(protein_g=100, carbohydrate_g=200, fat_g=60)
+        result = calculate_tdee_from_components(
+            moderate_male, macros, activity_model_kwargs={"entries": []}
+        )
+        with pytest.raises(ValidationError):
+            result.tdee_kcal = 9999.0  # type: ignore[misc]
+
+    def test_default_activity_model_is_met_based(self, moderate_male: Person) -> None:
+        from metabosim.models.tdee.calculator import DEFAULT_ACTIVITY_MODEL_ID
+
+        assert DEFAULT_ACTIVITY_MODEL_ID == "met_based"
