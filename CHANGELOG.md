@@ -5,6 +5,34 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 7: Physical activity models
+- `metabosim.models.activity.base.ActivityModel` — abstract strategy
+  interface. Forces every subclass to explicitly declare
+  `includes_average_tef: bool` (no default), the flag that determines
+  whether a strategy's output can be safely summed with a separately
+  computed TEF figure.
+- `metabosim.models.activity.met_based.METBasedActivityModel` +
+  `ActivityEntry` — bottom-up MET-based AEE model (Ainsworth
+  Compendium, 2011); safe to combine with TEF
+  (`includes_average_tef = False`).
+- `metabosim.models.activity.iom_pal.IOMPALActivityModel` — top-down
+  PAL-ratio AEE model using this project's documented 5-tier
+  interpolation of IOM (2005) PAL bands; NOT safe to combine with a
+  separate TEF (`includes_average_tef = True`).
+- `metabosim.models.activity.registry` — runtime model lookup,
+  supporting constructor kwargs (a deliberate deviation from the
+  zero-arg pattern used elsewhere, documented in-module).
+- `metabosim.models.tdee.calculator.calculate_tdee_from_components()` +
+  `ComponentTDEEResult` — sums independently-computed BMR + Activity +
+  TEF, with an enforced safety check that raises `ValueError` if the
+  chosen activity model would double-count TEF. This resolves the
+  caveat flagged in Phases 5 and 6.
+- 48 new unit tests (39 for `models.activity`, 9 for the new
+  calculator function); 202 tests total project-wide, 99% overall
+  coverage; `mypy --strict`, `black`, `ruff`, and all doctests clean.
+- `docs/phase_notes/phase_07.md`; `docs/model_references.md` updated
+  with full Ainsworth/Jette/IOM citations.
+
 ### Added — Phase 6: Thermic Effect of Food
 - `metabosim.models.tef.base.TEFModel` — abstract strategy interface.
 - `metabosim.models.tef.macronutrient_specific.MacronutrientSpecificTEF`

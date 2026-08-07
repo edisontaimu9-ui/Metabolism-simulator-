@@ -48,9 +48,20 @@ an entry here in its module docstring.
 
 - Institute of Medicine (US). *Dietary Reference Intakes for Energy,
   Carbohydrate, Fiber, Fat, Fatty Acids, Cholesterol, Protein, and Amino
-  Acids.* National Academies Press; 2005. (PAL categories, TEF baselines.)
-- Ainsworth BE, et al. "2011 Compendium of Physical Activities: a second
-  update of codes and MET values." *Med Sci Sports Exerc.* 2011.
+  Acids.* National Academies Press; 2005. (Four-tier PAL banding;
+  ``metabosim.models.activity.iom_pal`` interpolates a fifth tier to
+  match this project's ``ActivityLevel`` enum -- see that module's
+  docstring for the exact interpolation and why it is NOT an official
+  IOM table.)
+- Ainsworth BE, Haskell WL, Herrmann SD, et al. "2011 Compendium of
+  Physical Activities: a second update of codes and MET values."
+  *Med Sci Sports Exerc.* 2011;43(8):1575-1581. (MET values for
+  ``metabosim.models.activity.met_based.ActivityEntry``.)
+- Jette M, Sidney K, Blumchen G. "Metabolic equivalents (METS) in
+  exercise testing, exercise prescription, and evaluation of
+  functional capacity." *Clin Cardiol.* 1990;13(8):555-565. (Basis for
+  the 1 MET = 1 kcal/kg/hour convention used in
+  ``metabosim.models.activity.met_based``.)
 
 ## Thermic Effect of Food (`models.tef`) — Phase 6
 
