@@ -31,6 +31,24 @@ consulted anywhere in this simulator** -- supply an empty
 ``activity_entries`` list for a day with no logged activity (net
 Activity Energy Expenditure of zero for that day), not a particular
 ``ActivityLevel`` value.
+
+Body composition tracking (Phase 10)
+---------------------------------------------------------------------
+If the ``Person`` passed to ``Simulator`` has ``body_fat_percent``
+set, the simulator additionally tracks fat mass and lean mass
+separately (populating ``SimulationState.fat_mass_kg`` /
+``lean_mass_kg``), using ``body_composition_model_id`` to determine
+what fraction of each day's mass change is fat vs. lean -- see
+``metabosim.models.body_composition``. This also means the energy
+balance calculation uses a *dynamically computed*, current-fat-mass-
+dependent fraction (via
+``metabosim.models.energy_balance.tissue_energy_density.TissueEnergyDensityModel``)
+rather than that model's static 0.25 population-average default.
+
+If ``body_fat_percent`` is not set, none of this activates and the
+simulator behaves exactly as it did in Phase 9: ``fat_mass_kg`` /
+``lean_mass_kg`` stay ``None`` throughout, and the energy balance
+model's own static default fraction is used unchanged.
 """
 
 from __future__ import annotations
@@ -41,6 +59,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from metabosim.domain.diet import MacronutrientGrams
 from metabosim.models.activity.met_based import ActivityEntry
+from metabosim.models.body_composition.registry import (
+    get_model as get_body_composition_model,
+)
 from metabosim.models.energy_balance.registry import (
     get_model as get_energy_balance_model,
 )
@@ -52,6 +73,13 @@ from metabosim.models.tdee.calculator import DEFAULT_BMR_MODEL_ID, DEFAULT_TEF_M
 #: which already supplies weight-dependent expenditure feedback from
 #: actual physiology -- see ``metabosim.models.energy_balance.base``.
 DEFAULT_ENERGY_BALANCE_MODEL_ID: str = "tissue_energy_density"
+
+#: Default body composition model ID, used only when the subject's
+#: ``body_fat_percent`` is known (see
+#: ``metabosim.simulation.engine.Simulator`` and
+#: ``metabosim.simulation.stepper.step`` for exactly when body
+#: composition tracking activates).
+DEFAULT_BODY_COMPOSITION_MODEL_ID: str = "forbes"
 
 
 class DailyPlan(BaseModel):
@@ -98,6 +126,13 @@ class SimulationConfig(BaseModel):
         docstring and ``metabosim.models.energy_balance.base`` for why.
         Validated eagerly at construction time (fails fast rather than
         only when the simulation is run).
+    body_composition_model_id:
+        A key registered in ``metabosim.models.body_composition.registry``.
+        Only consulted when the ``Person`` passed to ``Simulator`` has
+        ``body_fat_percent`` set -- see
+        ``metabosim.simulation.engine.Simulator`` for the exact
+        activation rule. Defaults to ``"forbes"``. Validated eagerly at
+        construction time.
     start_date:
         Optional real calendar date for day 0. If provided, every
         produced ``SimulationState.date`` is populated; if omitted,
@@ -110,7 +145,23 @@ class SimulationConfig(BaseModel):
     bmr_model_id: str = DEFAULT_BMR_MODEL_ID
     tef_model_id: str = DEFAULT_TEF_MODEL_ID
     energy_balance_model_id: str = DEFAULT_ENERGY_BALANCE_MODEL_ID
+    body_composition_model_id: str = DEFAULT_BODY_COMPOSITION_MODEL_ID
     start_date: date_type | None = None
+
+    @model_validator(mode="after")
+    def _check_body_composition_model_is_registered(self) -> SimulationConfig:
+        """Fail fast if ``body_composition_model_id`` is not
+        registered, even though it may never actually be used (only
+        activates when a ``Person`` with ``body_fat_percent`` set is
+        passed to ``Simulator``).
+
+        Raises
+        ------
+        KeyError
+            If ``body_composition_model_id`` is not registered.
+        """
+        get_body_composition_model(self.body_composition_model_id)
+        return self
 
     @model_validator(mode="after")
     def _check_energy_balance_model_is_feedback_free(self) -> SimulationConfig:
