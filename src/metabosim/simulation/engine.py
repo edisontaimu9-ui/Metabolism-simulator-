@@ -28,6 +28,17 @@ The final state (index ``config.days``) is therefore a genuinely
 useful "where things stand now" snapshot -- its energy figures show
 what the subject's BMR/TDEE would be at their new weight if the same
 plan continued one more day -- rather than a wasted or empty row.
+
+Body composition tracking (Phase 10)
+---------------------------------------------------------------------
+If ``person.body_fat_percent`` is set, the simulator additionally
+tracks fat mass and lean mass day by day (populating
+``SimulationState.fat_mass_kg`` / ``lean_mass_kg``), seeded from
+``person.fat_mass_kg`` (a computed property already available since
+Phase 3). If ``person.body_fat_percent`` is ``None``, this simulator
+behaves exactly as it did in Phase 9 -- see
+``metabosim.simulation.config`` module docstring for the full
+rationale and ``metabosim.simulation.stepper`` for the mechanics.
 """
 
 from __future__ import annotations
@@ -47,10 +58,10 @@ class Simulator:
     ----------
     person:
         The subject's starting profile. ``person.weight_kg`` is the
-        simulation's baseline weight; every other field
-        (sex, age, height, body_fat_percent) is held constant
-        throughout the simulation -- body composition dynamics are not
-        modeled until Phase 10.
+        simulation's baseline weight. If ``person.body_fat_percent``
+        is set, body composition (fat vs. lean mass) is tracked
+        throughout the simulation -- see module docstring; if not
+        set, only total weight is tracked (Phase 9 behavior).
     config:
         Model-selection configuration; see
         ``metabosim.simulation.config.SimulationConfig``.
@@ -100,6 +111,12 @@ class Simulator:
         """
         baseline_weight_kg = self.person.weight_kg
         current_weight_kg = baseline_weight_kg
+
+        # Body composition tracking activates iff the starting Person
+        # has a known body_fat_percent -- reusing the Person.fat_mass_kg
+        # computed property from Phase 3 to seed the initial value.
+        current_fat_mass_kg = self.person.fat_mass_kg
+
         states: list[SimulationState] = []
 
         for day_index in range(self.config.days + 1):
@@ -120,7 +137,7 @@ class Simulator:
                 else None
             )
 
-            state, rate_kg_per_day = step(
+            result = step(
                 current_weight_kg=current_weight_kg,
                 baseline_weight_kg=baseline_weight_kg,
                 person_template=self.person,
@@ -128,10 +145,12 @@ class Simulator:
                 plan=plan,
                 config=self.config,
                 state_date=state_date,
+                current_fat_mass_kg=current_fat_mass_kg,
             )
-            states.append(state)
+            states.append(result.state)
 
             if day_index < self.config.days:
-                current_weight_kg += rate_kg_per_day
+                current_weight_kg += result.mass_change_rate_kg_per_day
+                current_fat_mass_kg = result.next_fat_mass_kg
 
         return states
