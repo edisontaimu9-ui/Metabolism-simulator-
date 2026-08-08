@@ -5,6 +5,32 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 9: Body weight simulation
+- `metabosim.simulation.config.DailyPlan` — one day's diet + logged
+  activity.
+- `metabosim.simulation.config.SimulationConfig` — model-selection
+  configuration, deferred since Phase 3 pending the model registries
+  it references. Eagerly validates that `energy_balance_model_id`
+  won't double-count weight-dependent expenditure feedback.
+- `metabosim.simulation.stepper.step()` — pure single-day state
+  transition function, independently unit-testable.
+- `metabosim.simulation.engine.Simulator` — runs `step()` repeatedly
+  to produce a full `list[SimulationState]` day-by-day history.
+- Real BMR recompute at each day's updated weight now supplies
+  weight-dependent expenditure feedback from actual physiology,
+  verified to shrink a sustained surplus over a 30-day simulation
+  (141.1 → 132.7 kcal/day) — replacing Phase 8's approximated `γ`
+  constant with the real domain models wherever a full simulation is
+  run.
+- Enforces the `includes_weight_dependent_feedback` flag (declared but
+  not yet enforced in Phase 8) at two independent layers: eagerly in
+  `SimulationConfig`, and again in `stepper.step()` as defense-in-depth.
+- 32 new unit tests, 100% coverage on `metabosim.simulation`.
+- 291 tests total project-wide, 99% overall coverage; `mypy --strict`,
+  `black`, `ruff`, and all doctests clean.
+- `docs/phase_notes/phase_09.md`. No new scientific citations required
+  — this phase composes Phases 4-8's already-cited models.
+
 ### Added — Phase 8: Energy balance engine
 - `metabosim.models.energy_balance.base.EnergyBalanceModel` — abstract
   strategy interface with both an instantaneous rate method
