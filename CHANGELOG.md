@@ -5,6 +5,41 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 10: Body composition simulation
+- `metabosim.models.body_composition.base.BodyCompositionModel` —
+  abstract strategy interface using a template-method pattern:
+  concrete subclasses implement only `ffm_fraction_of_change`; the
+  base class implements `partition_mass_change_kg` once, guaranteeing
+  consistency between the two.
+- `metabosim.models.body_composition.forbes.ForbesPartitionModel` —
+  `dFFM/dBW = C/(C+FM)` (Forbes, 1987/2000; Hall, 2007), with
+  sex-specific constants (10.4 kg female, 13.8 kg male).
+- `metabosim.models.body_composition.registry` — runtime model lookup.
+- `metabosim.simulation.config.SimulationConfig.body_composition_model_id`
+  — new field, validated eagerly at construction time.
+- `metabosim.simulation.stepper.step()` now accepts optional
+  `current_fat_mass_kg`, activating per-day fat/lean mass tracking:
+  dynamically-computed `ffm_fraction` (replacing Phase 8's static 0.25
+  default), updated `body_fat_percent` on each day's `Person` copy
+  (so Katch-McArdle/Cunningham BMR reflect current, not stale,
+  composition), and consistent fat/lean partitioning of each day's
+  mass change. **Breaking internal change:** `step()` now returns a
+  `StepResult` `NamedTuple` instead of a bare 2-tuple.
+- `metabosim.simulation.engine.Simulator` seeds body composition
+  tracking automatically from `person.fat_mass_kg` (a Phase 3 computed
+  property) whenever `person.body_fat_percent` is set; falls back
+  exactly to Phase 9 behavior otherwise.
+- End-to-end validation that the simulation reproduces Forbes'
+  qualitative theory: a leaner subject (8% body fat) gains
+  proportionally more lean mass than a fatter subject (35% body fat)
+  under an identical 30-day diet and activity plan.
+- 44 new unit tests (31 for `models.body_composition`, 6 rewritten +
+  new in `test_stepper.py`, 7 new in `test_engine.py`); 335 tests
+  total project-wide, 99% overall coverage; `mypy --strict`, `black`,
+  `ruff`, and all doctests clean.
+- `docs/phase_notes/phase_10.md`; `docs/model_references.md` updated
+  with full Forbes/Hall/Thomas citations.
+
 ### Added — Phase 9: Body weight simulation
 - `metabosim.simulation.config.DailyPlan` — one day's diet + logged
   activity.

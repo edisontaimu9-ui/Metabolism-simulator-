@@ -109,6 +109,18 @@ an entry here in its module docstring.
   *Nutr Rev.* 1987;45(9):225-231.
 - Forbes GB. "Body fat content influences the body composition response
   to nutrition and exercise." *Ann N Y Acad Sci.* 2000;904:359-365.
+- Hall KD. "Body fat and fat-free mass inter-relationships: Forbes's
+  theory revisited." *Br J Nutr.* 2007;97(6):1059-1063. (Infinitesimal
+  differential form used directly: dFFM/dBW = 10.4/(10.4+FM); also
+  derives the exact macroscopic correction, not implemented in this
+  project -- see ``metabosim.models.body_composition.forbes`` module
+  docstring for why.)
+- Thomas D, Das SK, Levine JA, et al. "New fat free mass - fat mass
+  model for use in physiological energy balance equations."
+  *Nutr Metab (Lond).* 2010;7:39. (Male-specific Forbes constant,
+  C=13.8 kg, used as this project's male default; disclosed as
+  resting on a smaller evidence base than Forbes' original
+  female-derived constant.)
 
 ## Adaptive thermogenesis (`models.adaptive_thermogenesis`) — Phase 11
 
