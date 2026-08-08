@@ -78,10 +78,30 @@ an entry here in its module docstring.
 
 ## Energy balance (`models.energy_balance`) — Phase 8
 
+- Wishnofsky M. "Caloric equivalents of gained or lost weight."
+  *Am J Clin Nutr.* 1958;6(5):542-546. (Origin of the 3500 kcal/lb
+  rule -- implemented and explicitly critiqued, not recommended, in
+  ``metabosim.models.energy_balance.static_rule``.)
 - Hall KD, Sacks G, Chandramohan D, et al. "Quantification of the effect
   of energy imbalance on bodyweight." *Lancet.* 2011;378(9793):826-837.
 - Hall KD, Chow CC. "Why is the 3500 kcal per pound weight loss rule
   wrong?" *Int J Obes.* 2013;37(12):1614-1615.
+- Hall KD, Jordan PN. "Modeling weight-loss maintenance to help
+  prevent body weight regain." *Am J Clin Nutr.* 2008;88(6):1495-1503.
+  (Basis for the reduced-form model in
+  ``metabosim.models.energy_balance.dynamic_quasi_exponential``.)
+- Heymsfield SB, Gonzalez MCC, Shen W, Redman L, Thomas D. "Weight loss
+  composition is one-fourth fat-free mass: a critical review and
+  critique of this widely cited rule." *Obes Rev.* 2014;15(4):310-321.
+  (Fat mass ~9500 kcal/kg, fat-free mass ~1020 kcal/kg, and the
+  default 25% FFM / 75% fat weight-change composition used in
+  ``metabosim.models.energy_balance.tissue_energy_density``.)
+- Yoo S. "Dynamic Energy Balance and Obesity Prevention."
+  *J Obes Metab Syndr.* 2018;27(4):203-212. (Illustrative published
+  example -- a 100 kg sedentary male at a sustained -500 kcal/day
+  deficit approaching a ~75 kg steady state -- used to back-derive the
+  default expenditure-feedback slope in
+  ``metabosim.models.energy_balance.dynamic_quasi_exponential``.)
 
 ## Body composition partitioning (`models.body_composition`) — Phase 10
 

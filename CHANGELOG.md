@@ -5,6 +5,34 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 8: Energy balance engine
+- `metabosim.models.energy_balance.base.EnergyBalanceModel` — abstract
+  strategy interface with both an instantaneous rate method
+  (`mass_change_rate_kg_per_day`) and a closed-form projection method
+  (`project_weight_change_kg`); forces every subclass to declare
+  `includes_weight_dependent_feedback: bool` (no default).
+- `metabosim.models.energy_balance.static_rule.StaticEnergyBalanceModel`
+  — the 3500 kcal/lb rule (Wishnofsky, 1958), implemented and
+  explicitly labeled not recommended, kept as a documented baseline
+  demonstrating its unbounded-linear-projection flaw numerically.
+- `metabosim.models.energy_balance.tissue_energy_density.TissueEnergyDensityModel`
+  — blended fat/FFM energy density primitive (7380 kcal/kg default,
+  Heymsfield et al. 2014), with no feedback of its own — intended for
+  composition with a real per-day BMR recompute in Phase 9.
+- `metabosim.models.energy_balance.dynamic_quasi_exponential.DynamicQuasiExponentialModel`
+  — reduced single-compartment dynamic model (after Hall & Jordan,
+  2008) with a bounded steady-state response; its default feedback
+  slope was back-derived from a published illustrative example via
+  `web_search`, with the calibration's limitations explicitly
+  disclosed rather than presented as exact.
+- `metabosim.models.energy_balance.registry` — runtime model lookup.
+- 58 new unit tests, 98% coverage on `models.energy_balance`; every
+  docstring numeric claim independently computed and cross-checked.
+- 260 tests total project-wide, 99% overall coverage; `mypy --strict`,
+  `black`, `ruff`, and all doctests clean.
+- `docs/phase_notes/phase_08.md`; `docs/model_references.md` updated
+  with full Wishnofsky/Hall/Heymsfield/Yoo citations.
+
 ### Added — Phase 7: Physical activity models
 - `metabosim.models.activity.base.ActivityModel` — abstract strategy
   interface. Forces every subclass to explicitly declare
