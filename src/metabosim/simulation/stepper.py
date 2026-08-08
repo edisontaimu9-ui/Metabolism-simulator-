@@ -3,27 +3,86 @@ metabosim.simulation.stepper
 ===============================
 
 The single-timestep state transition: given a subject's current
-weight, a day's diet + activity plan, and a ``SimulationConfig``,
-compute that day's ``SimulationState`` plus the mass-change rate to
-apply to obtain tomorrow's weight.
+weight (and, optionally, current fat mass), a day's diet + activity
+plan, and a ``SimulationConfig``, compute that day's
+``SimulationState`` plus the mass-change rate (and, if tracking body
+composition, the next fat/lean mass split) to apply to obtain
+tomorrow's state.
 
 This is a pure function, independent of ``metabosim.simulation.engine``,
 so it can be unit-tested in complete isolation from the day-by-day
 looping logic -- per this project's "every module must be
 independently testable" standard.
+
+Body composition tracking (Phase 10)
+---------------------------------------------------------------------
+Whether this step tracks fat/lean mass is determined entirely by
+whether the caller passes ``current_fat_mass_kg`` (not ``None``) --
+see ``metabosim.simulation.config`` module docstring for the full
+rationale and the exact activation rule used by
+``metabosim.simulation.engine.Simulator``. When tracking:
+
+1. The ``Person`` copy used for this day's BMR calculation gets an
+   updated ``body_fat_percent`` (derived from ``current_fat_mass_kg``
+   and ``current_weight_kg``), not just an updated ``weight_kg`` --
+   so body-composition-aware BMR equations (Katch-McArdle, Cunningham)
+   reflect the subject's *current* composition, not their initial one.
+2. The energy balance calculation uses a fresh
+   ``TissueEnergyDensityModel`` constructed with an
+   ``ffm_fraction`` computed *for this day's current fat mass* via
+   ``metabosim.models.body_composition``, instead of that model's
+   static 0.25 default -- this only applies when
+   ``config.energy_balance_model_id == "tissue_energy_density"``,
+   since the other registered energy balance models have no
+   ``ffm_fraction`` concept to override.
+3. The day's total mass change is itself partitioned into fat and lean
+   components (via the same body composition model, guaranteeing
+   consistency with step 2's fraction), producing the next day's fat
+   and lean mass.
 """
 
 from __future__ import annotations
 
 from datetime import date as date_type
+from typing import NamedTuple
 
 from metabosim.domain.person import Person
 from metabosim.domain.simulation_state import SimulationState
+from metabosim.models.body_composition.registry import (
+    get_model as get_body_composition_model,
+)
 from metabosim.models.energy_balance.registry import (
     get_model as get_energy_balance_model,
 )
+from metabosim.models.energy_balance.tissue_energy_density import (
+    TissueEnergyDensityModel,
+)
 from metabosim.models.tdee.calculator import calculate_tdee_from_components
 from metabosim.simulation.config import DailyPlan, SimulationConfig
+
+
+class StepResult(NamedTuple):
+    """The output of a single call to :func:`step`.
+
+    Attributes
+    ----------
+    state:
+        This day's computed ``SimulationState``.
+    mass_change_rate_kg_per_day:
+        The total mass-change rate (kg/day) to add to the current
+        weight to obtain the next day's starting weight.
+    next_fat_mass_kg, next_lean_mass_kg:
+        The next day's fat mass and lean mass, if body composition is
+        being tracked (see module docstring); both ``None`` otherwise.
+        When not ``None``, they always sum to
+        ``current_weight_kg + mass_change_rate_kg_per_day`` (up to
+        floating-point rounding).
+    """
+
+    state: SimulationState
+    mass_change_rate_kg_per_day: float
+    next_fat_mass_kg: float | None
+    next_lean_mass_kg: float | None
 
 
 def step(
@@ -34,9 +93,10 @@ def step(
     plan: DailyPlan,
     config: SimulationConfig,
     state_date: date_type | None = None,
-) -> tuple[SimulationState, float]:
-    """Compute one day's ``SimulationState`` and the mass-change rate
-    to apply to reach the next day's weight.
+    current_fat_mass_kg: float | None = None,
+) -> StepResult:
+    """Compute one day's ``SimulationState`` and the information
+    needed to advance to the next day.
 
     Parameters
     ----------
@@ -50,9 +110,9 @@ def step(
         ``metabosim.models.energy_balance.tissue_energy_density``).
     person_template:
         The subject's profile (sex, age, height, activity_level,
-        etc.). Its ``weight_kg`` is overridden with
-        ``current_weight_kg`` for this day's BMR calculation; every
-        other field is used as-is.
+        etc.). Its ``weight_kg`` (and, if tracking body composition,
+        ``body_fat_percent``) is overridden for this day's BMR
+        calculation; every other field is used as-is.
         Note: ``person_template.activity_level`` is NOT consulted --
         see ``metabosim.simulation.config`` module docstring.
     day_index:
@@ -63,13 +123,16 @@ def step(
         The simulation's model-selection configuration.
     state_date:
         Optional calendar date to embed in the returned state.
+    current_fat_mass_kg:
+        The subject's fat mass at the start of this simulated day, if
+        body composition is being tracked; ``None`` otherwise (the
+        Phase 9 behavior). See module docstring.
 
     Returns
     -------
-    tuple[SimulationState, float]
-        The computed state for this day, and the mass-change rate
-        (kg/day) to add to ``current_weight_kg`` to obtain the next
-        day's starting weight.
+    StepResult
+        This day's state, the mass-change rate, and (if tracking body
+        composition) the next day's fat/lean mass split.
 
     Raises
     ------
@@ -95,7 +158,18 @@ def step(
             "Use energy_balance_model_id='tissue_energy_density' instead."
         )
 
-    current_person = person_template.model_copy(update={"weight_kg": current_weight_kg})
+    track_composition = current_fat_mass_kg is not None
+
+    person_updates: dict[str, float] = {"weight_kg": current_weight_kg}
+    current_lean_mass_kg: float | None = None
+    if track_composition:
+        assert current_fat_mass_kg is not None  # narrows type for mypy
+        current_lean_mass_kg = current_weight_kg - current_fat_mass_kg
+        person_updates["body_fat_percent"] = (
+            current_fat_mass_kg / current_weight_kg
+        ) * 100.0
+
+    current_person = person_template.model_copy(update=person_updates)
 
     tdee_result = calculate_tdee_from_components(
         current_person,
@@ -112,6 +186,8 @@ def step(
         day_index=day_index,
         date=state_date,
         weight_kg=current_weight_kg,
+        fat_mass_kg=current_fat_mass_kg,
+        lean_mass_kg=current_lean_mass_kg,
         energy_intake_kcal=intake_kcal,
         energy_expenditure_kcal=tdee_result.tdee_kcal,
         bmr_kcal=tdee_result.bmr_kcal,
@@ -119,8 +195,45 @@ def step(
     )
 
     excess_weight_kg = current_weight_kg - baseline_weight_kg
-    rate_kg_per_day = energy_balance_model.mass_change_rate_kg_per_day(
+
+    # Use a dynamically-parameterized TissueEnergyDensityModel when
+    # tracking body composition and the configured energy balance
+    # model actually has an ffm_fraction concept to override -- see
+    # module docstring, point 2.
+    rate_energy_balance_model = energy_balance_model
+    body_composition_model = None
+    if track_composition and config.energy_balance_model_id == "tissue_energy_density":
+        assert current_fat_mass_kg is not None  # narrows type for mypy
+        body_composition_model = get_body_composition_model(
+            config.body_composition_model_id
+        )
+        ffm_fraction = body_composition_model.ffm_fraction_of_change(
+            current_fat_mass_kg, current_person.sex
+        )
+        rate_energy_balance_model = TissueEnergyDensityModel(ffm_fraction=ffm_fraction)
+
+    rate_kg_per_day = rate_energy_balance_model.mass_change_rate_kg_per_day(
         balance_kcal, excess_weight_kg
     )
 
-    return state, rate_kg_per_day
+    next_fat_mass_kg: float | None = None
+    next_lean_mass_kg: float | None = None
+    if track_composition:
+        assert current_fat_mass_kg is not None  # narrows type for mypy
+        assert current_lean_mass_kg is not None
+        if body_composition_model is None:
+            body_composition_model = get_body_composition_model(
+                config.body_composition_model_id
+            )
+        delta_fat_kg, delta_lean_kg = body_composition_model.partition_mass_change_kg(
+            rate_kg_per_day, current_fat_mass_kg, current_person.sex
+        )
+        next_fat_mass_kg = current_fat_mass_kg + delta_fat_kg
+        next_lean_mass_kg = current_lean_mass_kg + delta_lean_kg
+
+    return StepResult(
+        state=state,
+        mass_change_rate_kg_per_day=rate_kg_per_day,
+        next_fat_mass_kg=next_fat_mass_kg,
+        next_lean_mass_kg=next_lean_mass_kg,
+    )
