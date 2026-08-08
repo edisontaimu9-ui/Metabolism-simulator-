@@ -12,6 +12,7 @@ from datetime import date
 
 import pytest
 
+from metabosim.domain.enums import Sex
 from metabosim.domain.person import Person
 from metabosim.simulation.config import DailyPlan, SimulationConfig
 from metabosim.simulation.stepper import step
@@ -23,7 +24,7 @@ class TestStepReferenceValues:
         self, moderate_male_80kg: Person, jogging_plan: DailyPlan
     ) -> None:
         config = SimulationConfig(days=30)
-        state, rate = step(
+        result = step(
             current_weight_kg=80.0,
             baseline_weight_kg=80.0,
             person_template=moderate_male_80kg,
@@ -31,17 +32,19 @@ class TestStepReferenceValues:
             plan=jogging_plan,
             config=config,
         )
-        assert state.bmr_kcal == pytest.approx(1780.0)
-        assert state.tdee_kcal == pytest.approx(2438.9)
-        assert state.energy_intake_kcal == pytest.approx(2580.0)
-        assert state.energy_balance_kcal == pytest.approx(141.1, abs=1e-2)
-        assert rate == pytest.approx(141.1 / 7380.0, abs=1e-6)
+        assert result.state.bmr_kcal == pytest.approx(1780.0)
+        assert result.state.tdee_kcal == pytest.approx(2438.9)
+        assert result.state.energy_intake_kcal == pytest.approx(2580.0)
+        assert result.state.energy_balance_kcal == pytest.approx(141.1, abs=1e-2)
+        assert result.mass_change_rate_kg_per_day == pytest.approx(
+            141.1 / 7380.0, abs=1e-6
+        )
 
     def test_state_carries_requested_day_index_and_weight(
         self, moderate_male_80kg: Person, jogging_plan: DailyPlan
     ) -> None:
         config = SimulationConfig(days=30)
-        state, _ = step(
+        result = step(
             current_weight_kg=82.5,
             baseline_weight_kg=80.0,
             person_template=moderate_male_80kg,
@@ -49,14 +52,14 @@ class TestStepReferenceValues:
             plan=jogging_plan,
             config=config,
         )
-        assert state.day_index == 7
-        assert state.weight_kg == pytest.approx(82.5)
+        assert result.state.day_index == 7
+        assert result.state.weight_kg == pytest.approx(82.5)
 
     def test_state_date_is_embedded_when_provided(
         self, moderate_male_80kg: Person, jogging_plan: DailyPlan
     ) -> None:
         config = SimulationConfig(days=30)
-        state, _ = step(
+        result = step(
             current_weight_kg=80.0,
             baseline_weight_kg=80.0,
             person_template=moderate_male_80kg,
@@ -65,13 +68,13 @@ class TestStepReferenceValues:
             config=config,
             state_date=date(2026, 3, 1),
         )
-        assert state.date == date(2026, 3, 1)
+        assert result.state.date == date(2026, 3, 1)
 
     def test_state_date_is_none_when_not_provided(
         self, moderate_male_80kg: Person, jogging_plan: DailyPlan
     ) -> None:
         config = SimulationConfig(days=30)
-        state, _ = step(
+        result = step(
             current_weight_kg=80.0,
             baseline_weight_kg=80.0,
             person_template=moderate_male_80kg,
@@ -79,7 +82,7 @@ class TestStepReferenceValues:
             plan=jogging_plan,
             config=config,
         )
-        assert state.date is None
+        assert result.state.date is None
 
 
 @pytest.mark.unit
@@ -90,7 +93,7 @@ class TestStepUsesCurrentWeightNotPersonTemplateWeight:
         # person_template.weight_kg is 80, but current_weight_kg=100
         # should be what actually drives the BMR calculation.
         config = SimulationConfig(days=30)
-        state, _ = step(
+        result = step(
             current_weight_kg=100.0,
             baseline_weight_kg=80.0,
             person_template=moderate_male_80kg,
@@ -99,7 +102,7 @@ class TestStepUsesCurrentWeightNotPersonTemplateWeight:
             config=config,
         )
         # Mifflin-St Jeor: 10*100 + 6.25*180 - 5*30 + 5 = 1000+1125-150+5=1980
-        assert state.bmr_kcal == pytest.approx(1980.0)
+        assert result.state.bmr_kcal == pytest.approx(1980.0)
 
     def test_person_template_is_not_mutated(
         self, moderate_male_80kg: Person, jogging_plan: DailyPlan
@@ -126,7 +129,7 @@ class TestStepExcessWeightHandling:
         # identical regardless of baseline_weight_kg / accumulated
         # excess weight.
         config = SimulationConfig(days=30)
-        _, rate_a = step(
+        result_a = step(
             current_weight_kg=85.0,
             baseline_weight_kg=80.0,
             person_template=moderate_male_80kg,
@@ -134,7 +137,7 @@ class TestStepExcessWeightHandling:
             plan=jogging_plan,
             config=config,
         )
-        _, rate_b = step(
+        result_b = step(
             current_weight_kg=85.0,
             baseline_weight_kg=85.0,
             person_template=moderate_male_80kg,
@@ -142,7 +145,9 @@ class TestStepExcessWeightHandling:
             plan=jogging_plan,
             config=config,
         )
-        assert rate_a == rate_b
+        assert (
+            result_a.mass_change_rate_kg_per_day == result_b.mass_change_rate_kg_per_day
+        )
 
 
 @pytest.mark.unit
@@ -160,6 +165,7 @@ class TestStepSafetyCheck:
             bmr_model_id="mifflin_st_jeor",
             tef_model_id="macronutrient_specific",
             energy_balance_model_id="dynamic_quasi_exponential",
+            body_composition_model_id="forbes",
             start_date=None,
         )
         with pytest.raises(ValueError, match="double-count"):
@@ -171,3 +177,171 @@ class TestStepSafetyCheck:
                 plan=jogging_plan,
                 config=bad_config,
             )
+
+
+@pytest.mark.unit
+class TestStepBodyCompositionTracking:
+    """Tests for Phase 10's body composition tracking, activated by
+    passing current_fat_mass_kg (not None).
+    """
+
+    def test_not_tracking_when_fat_mass_is_none(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_fat_mass_kg=None,
+        )
+        assert result.state.fat_mass_kg is None
+        assert result.state.lean_mass_kg is None
+        assert result.next_fat_mass_kg is None
+        assert result.next_lean_mass_kg is None
+
+    def test_tracking_populates_state_fields(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_fat_mass_kg=16.0,
+        )
+        assert result.state.fat_mass_kg == pytest.approx(16.0)
+        assert result.state.lean_mass_kg == pytest.approx(64.0)
+
+    def test_next_fat_and_lean_mass_sum_to_next_weight(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_fat_mass_kg=16.0,
+        )
+        assert result.next_fat_mass_kg is not None
+        assert result.next_lean_mass_kg is not None
+        next_weight = 80.0 + result.mass_change_rate_kg_per_day
+        assert result.next_fat_mass_kg + result.next_lean_mass_kg == pytest.approx(
+            next_weight, abs=1e-9
+        )
+
+    def test_bmr_uses_updated_body_fat_percent_not_static_initial_value(
+        self, jogging_plan: DailyPlan
+    ) -> None:
+        # Katch-McArdle BMR depends on lean mass, which depends on
+        # body_fat_percent. A person_template with a deliberately
+        # stale/wrong body_fat_percent should NOT affect the result
+        # when tracking is active -- current_fat_mass_kg (together
+        # with current_weight_kg) must be what drives the day's BMR,
+        # not whatever body_fat_percent happens to be set on
+        # person_template.
+        stale_person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=50.0,  # deliberately stale/wrong
+        )
+        fresh_person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=20.0,  # the "true" current value
+        )
+        config = SimulationConfig(days=30, bmr_model_id="katch_mcardle")
+
+        # current_fat_mass_kg = 16.0 corresponds to 20% body fat at
+        # 80 kg -- i.e. fresh_person's actual composition, not
+        # stale_person's stated 50%.
+        result_from_stale_template = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=stale_person,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_fat_mass_kg=16.0,
+        )
+        result_from_fresh_template = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=fresh_person,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_fat_mass_kg=16.0,
+        )
+        assert result_from_stale_template.state.bmr_kcal == pytest.approx(
+            result_from_fresh_template.state.bmr_kcal
+        )
+
+    def test_low_fat_mass_produces_higher_ffm_fraction_partition(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=30)
+        low_fat_result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_fat_mass_kg=2.0,
+        )
+        high_fat_result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_fat_mass_kg=60.0,
+        )
+        assert low_fat_result.next_lean_mass_kg is not None
+        assert high_fat_result.next_lean_mass_kg is not None
+        low_fat_delta_lean = low_fat_result.next_lean_mass_kg - (80.0 - 2.0)
+        high_fat_delta_lean = high_fat_result.next_lean_mass_kg - (80.0 - 60.0)
+        # At low current fat mass, a larger share of the day's mass
+        # change should be lean; at high fat mass, a smaller share.
+        assert low_fat_delta_lean > high_fat_delta_lean
+
+    def test_only_overrides_ffm_fraction_for_tissue_energy_density(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        # static_rule has no ffm_fraction concept at all -- tracking
+        # composition must not error out or silently do nothing odd
+        # when combined with it; the rate should simply match
+        # StaticEnergyBalanceModel's own fixed-density calculation.
+        config = SimulationConfig(days=30, energy_balance_model_id="static_rule")
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_fat_mass_kg=16.0,
+        )
+        # 141.1 / 7716.18 (Wishnofsky density) -- unaffected by ffm_fraction
+        assert result.mass_change_rate_kg_per_day == pytest.approx(
+            141.1 / 7716.179176470715, abs=1e-6
+        )
+        # Composition is still tracked/reported and partitioned, even
+        # though the *rate* itself didn't use a Forbes-derived density.
+        assert result.next_fat_mass_kg is not None
+        assert result.next_lean_mass_kg is not None

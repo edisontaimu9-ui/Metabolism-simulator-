@@ -5,6 +5,7 @@ from datetime import date, timedelta
 import pytest
 
 from metabosim.domain.diet import MacronutrientGrams
+from metabosim.domain.enums import Sex
 from metabosim.domain.person import Person
 from metabosim.simulation.config import DailyPlan, SimulationConfig
 from metabosim.simulation.engine import Simulator
@@ -140,3 +141,123 @@ class TestSimulatorPersonImmutability:
         config = SimulationConfig(days=30)
         Simulator(moderate_male_80kg, config, jogging_plan).run()
         assert moderate_male_80kg.weight_kg == original_weight
+
+
+@pytest.mark.unit
+class TestSimulatorBodyCompositionTracking:
+    """Tests for Phase 10's body composition tracking at the
+    Simulator level -- activated automatically when the starting
+    Person has body_fat_percent set.
+    """
+
+    def test_no_body_fat_percent_leaves_composition_untracked(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        # moderate_male_80kg has no body_fat_percent -- Phase 9
+        # fallback behavior.
+        config = SimulationConfig(days=10)
+        states = Simulator(moderate_male_80kg, config, jogging_plan).run()
+        assert all(s.fat_mass_kg is None for s in states)
+        assert all(s.lean_mass_kg is None for s in states)
+
+    def test_body_fat_percent_activates_tracking(self, jogging_plan: DailyPlan) -> None:
+        person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=20.0,
+        )
+        config = SimulationConfig(days=10)
+        states = Simulator(person, config, jogging_plan).run()
+        assert all(s.fat_mass_kg is not None for s in states)
+        assert all(s.lean_mass_kg is not None for s in states)
+
+    def test_day_zero_composition_matches_person_fat_mass_kg(
+        self, jogging_plan: DailyPlan
+    ) -> None:
+        person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=20.0,
+        )
+        config = SimulationConfig(days=10)
+        states = Simulator(person, config, jogging_plan).run()
+        assert states[0].fat_mass_kg == pytest.approx(person.fat_mass_kg)
+        assert states[0].lean_mass_kg == pytest.approx(person.lean_mass_kg)
+
+    def test_composition_sums_to_weight_at_every_state(
+        self, jogging_plan: DailyPlan
+    ) -> None:
+        person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=20.0,
+        )
+        config = SimulationConfig(days=30)
+        states = Simulator(person, config, jogging_plan).run()
+        for state in states:
+            assert state.fat_mass_kg + state.lean_mass_kg == pytest.approx(
+                state.weight_kg, abs=1e-6
+            )
+
+    def test_fat_and_lean_mass_both_increase_under_sustained_surplus(
+        self, jogging_plan: DailyPlan
+    ) -> None:
+        person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=20.0,
+        )
+        config = SimulationConfig(days=30)
+        states = Simulator(person, config, jogging_plan).run()
+        assert states[-1].fat_mass_kg > states[0].fat_mass_kg
+        assert states[-1].lean_mass_kg > states[0].lean_mass_kg
+
+    def test_leaner_starting_person_gains_relatively_more_lean_mass(
+        self, jogging_plan: DailyPlan
+    ) -> None:
+        # Forbes' theory's core qualitative prediction: at the same
+        # total weight gain, a leaner person (lower body_fat_percent)
+        # should see a higher proportion of that gain go to lean mass
+        # than a fatter person would.
+        lean_person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=8.0,
+        )
+        fat_person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=35.0,
+        )
+        config = SimulationConfig(days=30)
+
+        lean_states = Simulator(lean_person, config, jogging_plan).run()
+        fat_states = Simulator(fat_person, config, jogging_plan).run()
+
+        lean_person_lean_gain = (
+            lean_states[-1].lean_mass_kg - lean_states[0].lean_mass_kg
+        )
+        lean_person_total_gain = lean_states[-1].weight_kg - lean_states[0].weight_kg
+        fat_person_lean_gain = fat_states[-1].lean_mass_kg - fat_states[0].lean_mass_kg
+        fat_person_total_gain = fat_states[-1].weight_kg - fat_states[0].weight_kg
+
+        lean_person_lean_fraction = lean_person_lean_gain / lean_person_total_gain
+        fat_person_lean_fraction = fat_person_lean_gain / fat_person_total_gain
+
+        assert lean_person_lean_fraction > fat_person_lean_fraction
+
+    def test_unknown_body_composition_model_id_raises_eagerly(self) -> None:
+        with pytest.raises(KeyError):
+            SimulationConfig(days=10, body_composition_model_id="not_a_real_model")
