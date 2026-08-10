@@ -39,6 +39,24 @@ rationale and the exact activation rule used by
    components (via the same body composition model, guaranteeing
    consistency with step 2's fraction), producing the next day's fat
    and lean mass.
+
+Adaptive thermogenesis (Phase 11)
+---------------------------------------------------------------------
+After computing the naive predicted TDEE (real BMR + activity + TEF,
+via ``calculate_tdee_from_components``), this step applies
+``config.adaptive_thermogenesis_model_id``'s adjustment on top of it:
+
+    effective_expenditure_kcal = tdee_result.tdee_kcal + adaptation_kcal
+
+``SimulationState.tdee_kcal`` retains the *naive* (unadjusted)
+prediction for transparency/comparison; ``energy_expenditure_kcal``
+(which drives the day's actual energy balance and mass change) and
+``adaptive_thermogenesis_kcal`` both reflect the adjustment -- this is
+exactly the relationship anticipated by
+``metabosim.domain.simulation_state.SimulationState``'s field
+docstrings since Phase 3. The default model (``"none"``) always
+returns zero, so ``energy_expenditure_kcal`` equals ``tdee_kcal``
+unless a different model is explicitly configured.
 """
 
 from __future__ import annotations
@@ -48,6 +66,9 @@ from typing import NamedTuple
 
 from metabosim.domain.person import Person
 from metabosim.domain.simulation_state import SimulationState
+from metabosim.models.adaptive_thermogenesis.registry import (
+    get_model as get_adaptive_thermogenesis_model,
+)
 from metabosim.models.body_composition.registry import (
     get_model as get_body_composition_model,
 )
@@ -179,8 +200,24 @@ def step(
         tef_model_id=config.tef_model_id,
     )
 
+    # Adaptive thermogenesis (Phase 11): an additional adjustment to
+    # expenditure, beyond what real BMR recompute already captures,
+    # scaled against the naive predicted TDEE (tdee_result.tdee_kcal)
+    # -- see metabosim.models.adaptive_thermogenesis.base for the
+    # three-model framework and metabosim.simulation.config for why
+    # "none" (zero adjustment) is the default.
+    adaptive_thermogenesis_model = get_adaptive_thermogenesis_model(
+        config.adaptive_thermogenesis_model_id
+    )
+    adaptive_thermogenesis_kcal = (
+        adaptive_thermogenesis_model.calculate_adjustment_kcal(
+            baseline_weight_kg, current_weight_kg, tdee_result.tdee_kcal
+        )
+    )
+    effective_expenditure_kcal = tdee_result.tdee_kcal + adaptive_thermogenesis_kcal
+
     intake_kcal = plan.macros.energy_kcal
-    balance_kcal = intake_kcal - tdee_result.tdee_kcal
+    balance_kcal = intake_kcal - effective_expenditure_kcal
 
     state = SimulationState(
         day_index=day_index,
@@ -189,9 +226,10 @@ def step(
         fat_mass_kg=current_fat_mass_kg,
         lean_mass_kg=current_lean_mass_kg,
         energy_intake_kcal=intake_kcal,
-        energy_expenditure_kcal=tdee_result.tdee_kcal,
+        energy_expenditure_kcal=effective_expenditure_kcal,
         bmr_kcal=tdee_result.bmr_kcal,
         tdee_kcal=tdee_result.tdee_kcal,
+        adaptive_thermogenesis_kcal=adaptive_thermogenesis_kcal,
     )
 
     excess_weight_kg = current_weight_kg - baseline_weight_kg
