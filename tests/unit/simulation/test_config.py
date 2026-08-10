@@ -91,3 +91,26 @@ class TestSimulationConfigValidation:
         # rather than leaving it as an untested assumption.
         config = SimulationConfig(days=10, bmr_model_id="not_a_real_model")
         assert config.bmr_model_id == "not_a_real_model"
+
+
+@pytest.mark.unit
+class TestSimulationConfigAdaptiveThermogenesis:
+    def test_default_adaptive_thermogenesis_model_is_none(self) -> None:
+        config = SimulationConfig(days=10)
+        assert config.adaptive_thermogenesis_model_id == "none"
+
+    def test_explicit_proportional_model_accepted(self) -> None:
+        config = SimulationConfig(
+            days=10, adaptive_thermogenesis_model_id="proportional"
+        )
+        assert config.adaptive_thermogenesis_model_id == "proportional"
+
+    def test_explicit_threshold_model_accepted(self) -> None:
+        config = SimulationConfig(days=10, adaptive_thermogenesis_model_id="threshold")
+        assert config.adaptive_thermogenesis_model_id == "threshold"
+
+    def test_unknown_adaptive_thermogenesis_model_id_raises_eagerly(self) -> None:
+        with pytest.raises(KeyError):
+            SimulationConfig(
+                days=10, adaptive_thermogenesis_model_id="not_a_real_model"
+            )

@@ -261,3 +261,78 @@ class TestSimulatorBodyCompositionTracking:
     def test_unknown_body_composition_model_id_raises_eagerly(self) -> None:
         with pytest.raises(KeyError):
             SimulationConfig(days=10, body_composition_model_id="not_a_real_model")
+
+
+@pytest.mark.unit
+class TestSimulatorAdaptiveThermogenesis:
+    """End-to-end tests for Phase 11's adaptive thermogenesis, run
+    through the full Simulator rather than just the isolated stepper.
+    """
+
+    def test_no_adaptation_is_the_default_over_a_full_simulation(
+        self, moderate_male_80kg: Person, sedentary_maintenance_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=60)
+        states = Simulator(moderate_male_80kg, config, sedentary_maintenance_plan).run()
+        assert all(s.adaptive_thermogenesis_kcal == pytest.approx(0.0) for s in states)
+        assert all(
+            s.energy_expenditure_kcal == pytest.approx(s.tdee_kcal) for s in states
+        )
+
+    def test_proportional_adaptation_slows_weight_loss_over_a_full_simulation(
+        self, sedentary_maintenance_plan: DailyPlan
+    ) -> None:
+        # Same person, same deficit-inducing plan, same duration --
+        # the only difference is whether adaptive thermogenesis is
+        # modeled. Real physiology (and this project's Phase 11
+        # citations) predicts LESS total weight loss when adaptation
+        # is modeled, since suppressed expenditure partially offsets
+        # the deficit as weight drops.
+        person = Person(sex=Sex.MALE, age_years=30, height_cm=180, weight_kg=100)
+        config_none = SimulationConfig(days=100)
+        config_proportional = SimulationConfig(
+            days=100, adaptive_thermogenesis_model_id="proportional"
+        )
+
+        states_none = Simulator(person, config_none, sedentary_maintenance_plan).run()
+        states_proportional = Simulator(
+            person, config_proportional, sedentary_maintenance_plan
+        ).run()
+
+        loss_without_adaptation = states_none[0].weight_kg - states_none[-1].weight_kg
+        loss_with_adaptation = (
+            states_proportional[0].weight_kg - states_proportional[-1].weight_kg
+        )
+        assert loss_with_adaptation < loss_without_adaptation
+
+    def test_adaptive_thermogenesis_kcal_grows_in_magnitude_as_weight_drops(
+        self, sedentary_maintenance_plan: DailyPlan
+    ) -> None:
+        person = Person(sex=Sex.MALE, age_years=30, height_cm=180, weight_kg=100)
+        config = SimulationConfig(
+            days=100, adaptive_thermogenesis_model_id="proportional"
+        )
+        states = Simulator(person, config, sedentary_maintenance_plan).run()
+        # As weight drops further from baseline over the simulation,
+        # the (negative) adaptation term should grow in magnitude.
+        early_adaptation = abs(states[10].adaptive_thermogenesis_kcal)
+        late_adaptation = abs(states[90].adaptive_thermogenesis_kcal)
+        assert late_adaptation > early_adaptation
+
+    def test_threshold_model_gives_flat_fraction_once_activated(
+        self, sedentary_maintenance_plan: DailyPlan
+    ) -> None:
+        # Once the 10% threshold is crossed, the adjustment must stay
+        # pinned at exactly -15% of that day's own naive TDEE,
+        # regardless of how much further weight drops beyond the
+        # threshold -- unlike the proportional model, whose fraction
+        # keeps growing in magnitude with further weight loss.
+        person = Person(sex=Sex.MALE, age_years=30, height_cm=180, weight_kg=100)
+        config = SimulationConfig(days=150, adaptive_thermogenesis_model_id="threshold")
+        states = Simulator(person, config, sedentary_maintenance_plan).run()
+
+        activated_states = [s for s in states if s.adaptive_thermogenesis_kcal != 0.0]
+        assert len(activated_states) > 0
+        for s in activated_states:
+            ratio = s.adaptive_thermogenesis_kcal / s.tdee_kcal
+            assert ratio == pytest.approx(-0.15, abs=1e-6)

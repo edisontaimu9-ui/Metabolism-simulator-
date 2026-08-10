@@ -345,3 +345,117 @@ class TestStepBodyCompositionTracking:
         # though the *rate* itself didn't use a Forbes-derived density.
         assert result.next_fat_mass_kg is not None
         assert result.next_lean_mass_kg is not None
+
+
+@pytest.mark.unit
+class TestStepAdaptiveThermogenesis:
+    """Tests for Phase 11's adaptive thermogenesis wiring."""
+
+    def test_default_model_gives_zero_adjustment(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=72.0,  # 10% below an implied 80kg baseline
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+        )
+        assert result.state.adaptive_thermogenesis_kcal == pytest.approx(0.0)
+        assert result.state.energy_expenditure_kcal == pytest.approx(
+            result.state.tdee_kcal
+        )
+
+    def test_proportional_model_reduces_effective_expenditure_at_reduced_weight(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(
+            days=30, adaptive_thermogenesis_model_id="proportional"
+        )
+        result = step(
+            current_weight_kg=72.0,  # 10% below baseline
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+        )
+        # -0.15 * naive TDEE
+        assert result.state.adaptive_thermogenesis_kcal == pytest.approx(
+            -0.15 * result.state.tdee_kcal, rel=1e-6
+        )
+        assert result.state.energy_expenditure_kcal == pytest.approx(
+            result.state.tdee_kcal + result.state.adaptive_thermogenesis_kcal
+        )
+        assert result.state.energy_expenditure_kcal < result.state.tdee_kcal
+
+    def test_proportional_model_increases_effective_expenditure_at_elevated_weight(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(
+            days=30, adaptive_thermogenesis_model_id="proportional"
+        )
+        result = step(
+            current_weight_kg=88.0,  # 10% above baseline
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+        )
+        assert result.state.adaptive_thermogenesis_kcal > 0.0
+        assert result.state.energy_expenditure_kcal > result.state.tdee_kcal
+
+    def test_adaptation_affects_mass_change_rate(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        # At reduced weight, adaptive suppression lowers effective
+        # expenditure, which (for the same intake) INCREASES the net
+        # energy balance -- i.e. slows further loss / boosts gain,
+        # relative to the no-adaptation baseline rate.
+        config_none = SimulationConfig(days=30)
+        config_proportional = SimulationConfig(
+            days=30, adaptive_thermogenesis_model_id="proportional"
+        )
+        result_none = step(
+            current_weight_kg=72.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config_none,
+        )
+        result_proportional = step(
+            current_weight_kg=72.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config_proportional,
+        )
+        assert (
+            result_proportional.mass_change_rate_kg_per_day
+            > result_none.mass_change_rate_kg_per_day
+        )
+
+    def test_tdee_kcal_stays_naive_while_expenditure_reflects_adaptation(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        # This is the exact relationship SimulationState's docstring
+        # has anticipated since Phase 3: tdee_kcal is the "clean"
+        # prediction; energy_expenditure_kcal includes adaptation.
+        config = SimulationConfig(days=30, adaptive_thermogenesis_model_id="threshold")
+        result = step(
+            current_weight_kg=72.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+        )
+        assert result.state.tdee_kcal != result.state.energy_expenditure_kcal
+        assert result.state.energy_expenditure_kcal == pytest.approx(
+            result.state.tdee_kcal + result.state.adaptive_thermogenesis_kcal
+        )
