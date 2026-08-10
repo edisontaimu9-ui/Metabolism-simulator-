@@ -5,6 +5,43 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 11: Adaptive thermogenesis
+- `metabosim.models.adaptive_thermogenesis.base.AdaptiveThermogenesisModel`
+  — abstract strategy interface.
+- `metabosim.models.adaptive_thermogenesis.none.NoAdaptiveThermogenesisModel`
+  — always zero; the default used by `metabosim.simulation`, chosen
+  because the magnitude/dynamics of real adaptation are genuinely
+  less settled than every other modeled component.
+- `metabosim.models.adaptive_thermogenesis.threshold.ThresholdAdaptiveThermogenesisModel`
+  and `.proportional.ProportionalAdaptiveThermogenesisModel` — two
+  competing models (Rosenbaum & Leibel, 2016's "Model 2"/"Model 3"
+  framework), both calibrated to the same cited finding: a 10%
+  weight change produces ~15% expenditure adjustment (Leibel et al.,
+  1995; Goldsmith et al., 2010).
+- `metabosim.models.adaptive_thermogenesis.registry` — runtime model
+  lookup.
+- `metabosim.simulation.config.SimulationConfig.adaptive_thermogenesis_model_id`
+  — new field, validated eagerly at construction time.
+- `metabosim.simulation.stepper.step()` now applies the configured
+  adaptation adjustment on top of the naive predicted TDEE, finally
+  populating `SimulationState.adaptive_thermogenesis_kcal` (a
+  Phase 3 field that had always been zero until now) and making
+  `energy_expenditure_kcal` diverge from `tdee_kcal` when adaptation
+  is enabled.
+- End-to-end validation that enabling proportional adaptation reduces
+  total weight loss over a 100-day simulation relative to no
+  adaptation, for the identical person/diet — the real, citable
+  physiological consequence, verified through the whole stack.
+- 43 new unit tests for `models.adaptive_thermogenesis`, plus new
+  stepper- and engine-level integration tests; 391 tests total
+  project-wide, 99% overall coverage; `mypy --strict`, `black`,
+  `ruff`, and all doctests clean.
+- All calibration figures (15%, 10%, slope 1.5, 20% clamp) verified
+  against directly-quoted literature sources via web search before
+  being encoded.
+- `docs/phase_notes/phase_11.md`; `docs/model_references.md` updated
+  with full Leibel/Goldsmith/Rosenbaum/Fothergill/Martins citations.
+
 ### Added — Phase 10: Body composition simulation
 - `metabosim.models.body_composition.base.BodyCompositionModel` —
   abstract strategy interface using a template-method pattern:

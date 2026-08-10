@@ -125,9 +125,40 @@ an entry here in its module docstring.
 ## Adaptive thermogenesis (`models.adaptive_thermogenesis`) — Phase 11
 
 - Leibel RL, Rosenbaum M, Hirsch J. "Changes in energy expenditure
-  resulting from altered body weight." *N Engl J Med.* 1995;332(10):621-628.
-- Fothergill E, Guo J, Howard L, et al. "Persistent metabolic adaptation
-  6 years after 'The Biggest Loser' competition." *Obesity.* 2016;24(8).
+  resulting from altered body weight." *N Engl J Med.*
+  1995;332(10):621-628. (Foundational demonstration that maintaining
+  a 10%+ altered body weight produces compensatory expenditure
+  changes beyond those predicted by body composition alone.)
+- Goldsmith R, Joanisse DR, Gallagher D, Pavlovich K, Shamoon E,
+  Leibel RL, Rosenbaum M. "Effects of experimental weight
+  perturbation on skeletal muscle work efficiency, fuel utilization,
+  and biochemistry in human subjects." *Am J Physiol Regul Integr
+  Comp Physiol.* 2010;298(1):R79-88. (States the calibration figure
+  used directly: ~15% below/above predicted expenditure per unit
+  metabolic mass at a 10% experimental weight change, symmetric for
+  loss and gain.)
+- Rosenbaum M, Leibel RL. "Models of energy homeostasis in response
+  to maintenance of reduced body weight." *Obesity (Silver Spring).*
+  2016;24(8):1620-1629. (Source of the three-model framework --
+  none / threshold / proportional -- implemented directly as three
+  separate strategies in this package.)
+- Fothergill E, Guo J, Howard L, et al. "Persistent metabolic
+  adaptation 6 years after 'The Biggest Loser' competition."
+  *Obesity.* 2016;24(8):1612-1619. (~500 kcal/day persistent
+  adaptation in an extreme-weight-loss cohort; concludes adaptation
+  is "a proportional, but incomplete, response" -- cited as
+  qualitative support for the proportional model archetype, not as a
+  calibration source for this project's default parameters, since
+  the cohort's weight change magnitude is far outside Leibel's
+  originally-tested range.)
+- Martins C, Roekenes J, Salamati S, et al. "Metabolic adaptation is
+  an illusion, only present when participants are in negative energy
+  balance." *Am J Clin Nutr.* 2020. (Cited as a documented
+  counter-perspective: much apparent adaptation observed acutely
+  after weight loss may resolve once weight stabilizes, underscoring
+  why this project treats the magnitude/dynamics of adaptation as
+  unsettled and defaults to the "no adaptation" model -- see
+  ``metabosim.models.adaptive_thermogenesis.base`` module docstring.)
 - Keys A, Brožek J, Henschel A, Mickelsen O, Taylor HL. *The Biology of
   Human Starvation.* University of Minnesota Press; 1950. (Minnesota
   Starvation Experiment — Phase 17 validation dataset source.)
