@@ -49,6 +49,19 @@ If ``body_fat_percent`` is not set, none of this activates and the
 simulator behaves exactly as it did in Phase 9: ``fat_mass_kg`` /
 ``lean_mass_kg`` stay ``None`` throughout, and the energy balance
 model's own static default fraction is used unchanged.
+
+Adaptive thermogenesis (Phase 11)
+---------------------------------------------------------------------
+By default, this simulator's real per-day BMR recompute is the ONLY
+source of weight-dependent expenditure change -- no additional
+"metabolic adaptation" beyond that is modeled
+(``adaptive_thermogenesis_model_id`` defaults to ``"none"``). Set it
+to ``"threshold"`` or ``"proportional"`` to add a documented,
+cited adjustment representing the *additional* expenditure suppression
+(during loss) or increase (during gain) observed in the literature
+beyond what mass change alone predicts -- see
+``metabosim.models.adaptive_thermogenesis`` for the three-model
+framework and why none of them is the default.
 """
 
 from __future__ import annotations
@@ -59,6 +72,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from metabosim.domain.diet import MacronutrientGrams
 from metabosim.models.activity.met_based import ActivityEntry
+from metabosim.models.adaptive_thermogenesis.registry import (
+    get_model as get_adaptive_thermogenesis_model,
+)
 from metabosim.models.body_composition.registry import (
     get_model as get_body_composition_model,
 )
@@ -80,6 +96,14 @@ DEFAULT_ENERGY_BALANCE_MODEL_ID: str = "tissue_energy_density"
 #: ``metabosim.simulation.stepper.step`` for exactly when body
 #: composition tracking activates).
 DEFAULT_BODY_COMPOSITION_MODEL_ID: str = "forbes"
+
+#: Default adaptive thermogenesis model ID. ``"none"`` is used --
+#: not because the "no adaptation" model is believed most accurate,
+#: but because the magnitude and dynamics of real adaptive
+#: thermogenesis are less settled in the literature than every other
+#: modeled component -- see
+#: ``metabosim.models.adaptive_thermogenesis.base`` module docstring.
+DEFAULT_ADAPTIVE_THERMOGENESIS_MODEL_ID: str = "none"
 
 
 class DailyPlan(BaseModel):
@@ -133,6 +157,13 @@ class SimulationConfig(BaseModel):
         ``metabosim.simulation.engine.Simulator`` for the exact
         activation rule. Defaults to ``"forbes"``. Validated eagerly at
         construction time.
+    adaptive_thermogenesis_model_id:
+        A key registered in
+        ``metabosim.models.adaptive_thermogenesis.registry``. Defaults
+        to ``"none"`` -- see module docstring above for why an
+        explicit "no adaptation" default was chosen over one of the
+        contested alternative magnitudes. Validated eagerly at
+        construction time.
     start_date:
         Optional real calendar date for day 0. If provided, every
         produced ``SimulationState.date`` is populated; if omitted,
@@ -146,7 +177,21 @@ class SimulationConfig(BaseModel):
     tef_model_id: str = DEFAULT_TEF_MODEL_ID
     energy_balance_model_id: str = DEFAULT_ENERGY_BALANCE_MODEL_ID
     body_composition_model_id: str = DEFAULT_BODY_COMPOSITION_MODEL_ID
+    adaptive_thermogenesis_model_id: str = DEFAULT_ADAPTIVE_THERMOGENESIS_MODEL_ID
     start_date: date_type | None = None
+
+    @model_validator(mode="after")
+    def _check_adaptive_thermogenesis_model_is_registered(self) -> SimulationConfig:
+        """Fail fast if ``adaptive_thermogenesis_model_id`` is not
+        registered.
+
+        Raises
+        ------
+        KeyError
+            If ``adaptive_thermogenesis_model_id`` is not registered.
+        """
+        get_adaptive_thermogenesis_model(self.adaptive_thermogenesis_model_id)
+        return self
 
     @model_validator(mode="after")
     def _check_body_composition_model_is_registered(self) -> SimulationConfig:
