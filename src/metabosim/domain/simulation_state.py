@@ -51,9 +51,21 @@ class SimulationState(BaseModel):
         Total body glycogen store, in grams. Populated by
         ``metabosim.models.macronutrient`` (Phase 12).
     total_body_water_kg:
-        Total body water, in kilograms. Relevant for explaining
-        short-term weight fluctuations that are not fat/lean mass
-        changes (e.g. glycogen-associated water).
+        The glycogen-associated component of total body water, in
+        kilograms (NOT whole-body water/hydration status, which
+        remains out of scope -- see
+        ``metabosim.models.macronutrient.glycogen`` module docstring).
+        Following Chow CC, Hall KD. "The Dynamics of Human Body
+        Weight Change." *PLoS Comput Biol.* 2008;4(3):e1000045,
+        glycogen and its associated water are, by definition, part of
+        fat-free/lean mass -- so ``glycogen_g`` and
+        ``total_body_water_kg`` are informational *breakdowns of what
+        is already included in* ``lean_mass_kg``, not separate
+        additive terms. ``fat_mass_kg + lean_mass_kg`` still sums to
+        ``weight_kg`` exactly (see validator below); these two fields
+        exist to explain *why* lean mass moved on short timescales
+        (glycogen/water shifts) versus longer ones (structural tissue
+        change).
     energy_intake_kcal:
         Total energy consumed during this timestep.
     energy_expenditure_kcal:
