@@ -459,3 +459,185 @@ class TestStepAdaptiveThermogenesis:
         assert result.state.energy_expenditure_kcal == pytest.approx(
             result.state.tdee_kcal + result.state.adaptive_thermogenesis_kcal
         )
+
+
+@pytest.mark.unit
+class TestStepGlycogenTracking:
+    """Tests for Phase 12's glycogen tracking, activated by passing
+    current_glycogen_g (not None) alongside
+    current_reference_carbohydrate_intake_g.
+    """
+
+    def test_not_tracking_when_glycogen_is_none(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+        )
+        assert result.state.glycogen_g is None
+        assert result.state.total_body_water_kg is None
+        assert result.next_glycogen_g is None
+        assert result.next_reference_carbohydrate_intake_g is None
+
+    def test_providing_only_one_of_the_pair_raises(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=30)
+        with pytest.raises(ValueError, match="must both be provided"):
+            step(
+                current_weight_kg=80.0,
+                baseline_weight_kg=80.0,
+                person_template=moderate_male_80kg,
+                day_index=0,
+                plan=jogging_plan,
+                config=config,
+                current_glycogen_g=300.0,
+                current_reference_carbohydrate_intake_g=None,
+            )
+        with pytest.raises(ValueError, match="must both be provided"):
+            step(
+                current_weight_kg=80.0,
+                baseline_weight_kg=80.0,
+                person_template=moderate_male_80kg,
+                day_index=0,
+                plan=jogging_plan,
+                config=config,
+                current_glycogen_g=None,
+                current_reference_carbohydrate_intake_g=300.0,
+            )
+
+    def test_tracking_populates_state_fields(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=jogging_plan,
+            config=config,
+            current_glycogen_g=300.0,
+            current_reference_carbohydrate_intake_g=300.0,
+        )
+        assert result.state.glycogen_g == pytest.approx(300.0)
+        # 300 * (1+2.7) / 1000 = 1.11
+        assert result.state.total_body_water_kg == pytest.approx(1.11)
+
+    def test_matched_intake_and_reference_gives_stable_glycogen(
+        self, moderate_male_80kg: Person
+    ) -> None:
+        from metabosim.domain.diet import MacronutrientGrams
+
+        plan = DailyPlan(
+            macros=MacronutrientGrams(
+                protein_g=150, carbohydrate_g=300, fat_g=80, fiber_g=30
+            ),
+            activity_entries=[],
+        )
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=plan,
+            config=config,
+            current_glycogen_g=250.0,
+            current_reference_carbohydrate_intake_g=300.0,
+        )
+        assert result.next_glycogen_g == pytest.approx(250.0)
+
+    def test_carbohydrate_deficit_reduces_next_glycogen_and_rate(
+        self, moderate_male_80kg: Person
+    ) -> None:
+        from metabosim.domain.diet import MacronutrientGrams
+
+        low_carb_plan = DailyPlan(
+            macros=MacronutrientGrams(protein_g=150, carbohydrate_g=20, fat_g=150),
+            activity_entries=[],
+        )
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=low_carb_plan,
+            config=config,
+            current_glycogen_g=300.0,
+            current_reference_carbohydrate_intake_g=300.0,
+        )
+        assert result.next_glycogen_g is not None
+        assert result.next_glycogen_g < 300.0
+        # The glycogen transient should make the day's total mass
+        # change rate MORE negative than the energy-balance-only rate
+        # would have been (glycogen depletion adds weight loss).
+        assert result.mass_change_rate_kg_per_day < 0.0
+
+    def test_glycogen_transient_is_attributed_to_lean_not_fat(self) -> None:
+        from metabosim.domain.diet import MacronutrientGrams
+
+        person = Person(
+            sex=Sex.MALE,
+            age_years=30,
+            height_cm=180,
+            weight_kg=80,
+            body_fat_percent=20.0,
+        )
+        low_carb_plan = DailyPlan(
+            macros=MacronutrientGrams(protein_g=150, carbohydrate_g=20, fat_g=150),
+            activity_entries=[],
+        )
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=person,
+            day_index=0,
+            plan=low_carb_plan,
+            config=config,
+            current_fat_mass_kg=16.0,
+            current_glycogen_g=300.0,
+            current_reference_carbohydrate_intake_g=300.0,
+        )
+        assert result.next_fat_mass_kg is not None
+        assert result.next_lean_mass_kg is not None
+        next_weight = 80.0 + result.mass_change_rate_kg_per_day
+        assert result.next_fat_mass_kg + result.next_lean_mass_kg == pytest.approx(
+            next_weight, abs=1e-9
+        )
+
+    def test_glycogen_tracking_works_without_composition_tracking(
+        self, moderate_male_80kg: Person
+    ) -> None:
+        # moderate_male_80kg has no body_fat_percent -- composition
+        # tracking is off, but glycogen tracking should still work
+        # independently.
+        from metabosim.domain.diet import MacronutrientGrams
+
+        low_carb_plan = DailyPlan(
+            macros=MacronutrientGrams(protein_g=150, carbohydrate_g=20, fat_g=150),
+            activity_entries=[],
+        )
+        config = SimulationConfig(days=30)
+        result = step(
+            current_weight_kg=80.0,
+            baseline_weight_kg=80.0,
+            person_template=moderate_male_80kg,
+            day_index=0,
+            plan=low_carb_plan,
+            config=config,
+            current_glycogen_g=300.0,
+            current_reference_carbohydrate_intake_g=300.0,
+        )
+        assert result.next_fat_mass_kg is None
+        assert result.next_lean_mass_kg is None
+        assert result.next_glycogen_g is not None
+        assert result.next_glycogen_g < 300.0

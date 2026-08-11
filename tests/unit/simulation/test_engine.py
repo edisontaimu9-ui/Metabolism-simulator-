@@ -336,3 +336,102 @@ class TestSimulatorAdaptiveThermogenesis:
         for s in activated_states:
             ratio = s.adaptive_thermogenesis_kcal / s.tdee_kcal
             assert ratio == pytest.approx(-0.15, abs=1e-6)
+
+
+@pytest.mark.unit
+class TestSimulatorGlycogenTracking:
+    """End-to-end tests for Phase 12's glycogen tracking, run through
+    the full Simulator rather than just the isolated stepper.
+    """
+
+    def test_glycogen_tracking_off_by_default(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=10)
+        states = Simulator(moderate_male_80kg, config, jogging_plan).run()
+        assert all(s.glycogen_g is None for s in states)
+        assert all(s.total_body_water_kg is None for s in states)
+
+    def test_initial_glycogen_g_activates_tracking(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        config = SimulationConfig(days=10)
+        states = Simulator(
+            moderate_male_80kg, config, jogging_plan, initial_glycogen_g=300.0
+        ).run()
+        assert all(s.glycogen_g is not None for s in states)
+        assert states[0].glycogen_g == pytest.approx(300.0)
+
+    def test_default_reference_matches_day_zero_intake_giving_no_initial_transient(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        # jogging_plan's carbohydrate_g is 300 -- with no explicit
+        # reference given, it should default to day 0's own intake,
+        # producing zero glycogen change for a plan that never varies.
+        config = SimulationConfig(days=10)
+        states = Simulator(
+            moderate_male_80kg, config, jogging_plan, initial_glycogen_g=250.0
+        ).run()
+        assert all(s.glycogen_g == pytest.approx(250.0, abs=1e-6) for s in states)
+
+    def test_diet_switch_produces_sharp_transient_drop(self) -> None:
+        # The signature scenario this phase exists to capture: a
+        # sudden switch to low-carbohydrate intake should produce a
+        # sharp, short-lived extra weight drop, distinct from the
+        # smooth underlying energy-balance trend.
+        person = Person(sex=Sex.MALE, age_years=30, height_cm=180, weight_kg=80)
+        habitual = DailyPlan(
+            macros=MacronutrientGrams(protein_g=150, carbohydrate_g=300, fat_g=70)
+        )
+        low_carb = DailyPlan(
+            macros=MacronutrientGrams(protein_g=150, carbohydrate_g=20, fat_g=150)
+        )
+        plans = [habitual] * 3 + [low_carb] * 12
+        config = SimulationConfig(days=15)
+        states = Simulator(person, config, plans, initial_glycogen_g=300.0).run()
+
+        # The transition day's weight drop should be far larger than
+        # any single day's drop once glycogen has fully depleted and
+        # only the smooth underlying trend remains.
+        transition_drop = states[3].weight_kg - states[4].weight_kg
+        later_drop = states[10].weight_kg - states[11].weight_kg
+        assert transition_drop > abs(later_drop) * 5
+
+    def test_transient_resolves_and_hands_off_to_smooth_trend(self) -> None:
+        person = Person(sex=Sex.MALE, age_years=30, height_cm=180, weight_kg=80)
+        habitual = DailyPlan(
+            macros=MacronutrientGrams(protein_g=150, carbohydrate_g=300, fat_g=70)
+        )
+        low_carb = DailyPlan(
+            macros=MacronutrientGrams(protein_g=150, carbohydrate_g=20, fat_g=150)
+        )
+        plans = [habitual] * 3 + [low_carb] * 30
+        config = SimulationConfig(days=33)
+        states = Simulator(person, config, plans, initial_glycogen_g=300.0).run()
+
+        # By the end, glycogen should be fully depleted and stable
+        # (matched to the low reference), with no further glycogen
+        # changes contributing to weight.
+        assert states[-1].glycogen_g == pytest.approx(0.0, abs=1.0)
+        late_weight_deltas = [
+            states[i + 1].weight_kg - states[i].weight_kg for i in range(25, 33)
+        ]
+        # All late deltas should be small and similar in magnitude
+        # (smooth trend), unlike the sharp initial transient.
+        assert max(late_weight_deltas) - min(late_weight_deltas) < 0.01
+
+    def test_explicit_reference_seed_overrides_default(
+        self, moderate_male_80kg: Person, jogging_plan: DailyPlan
+    ) -> None:
+        # jogging_plan's carbohydrate_g is 300; seeding a lower
+        # explicit reference should produce an immediate initial
+        # transient even though the plan itself never changes.
+        config = SimulationConfig(days=5)
+        states = Simulator(
+            moderate_male_80kg,
+            config,
+            jogging_plan,
+            initial_glycogen_g=100.0,
+            initial_reference_carbohydrate_intake_g=50.0,
+        ).run()
+        assert states[1].glycogen_g > states[0].glycogen_g
