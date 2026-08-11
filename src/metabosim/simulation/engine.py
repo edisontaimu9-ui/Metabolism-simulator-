@@ -39,6 +39,21 @@ Phase 3). If ``person.body_fat_percent`` is ``None``, this simulator
 behaves exactly as it did in Phase 9 -- see
 ``metabosim.simulation.config`` module docstring for the full
 rationale and ``metabosim.simulation.stepper`` for the mechanics.
+
+Glycogen tracking (Phase 12)
+---------------------------------------------------------------------
+If ``initial_glycogen_g`` is provided to the constructor, the
+simulator additionally tracks glycogen (and its associated water) day
+by day (populating ``SimulationState.glycogen_g`` /
+``total_body_water_kg``), independent of whether body composition is
+being tracked. ``initial_reference_carbohydrate_intake_g`` seeds the
+carbohydrate-oxidation estimate used to drive that tracking; if
+omitted, it defaults to the first day's planned carbohydrate intake --
+i.e. "assume the subject is already adapted to whatever they are
+about to eat on day 0," which produces zero initial transient unless
+intake subsequently changes. See
+``metabosim.models.macronutrient.glycogen`` and
+``metabosim.simulation.stepper`` for the mechanics.
 """
 
 from __future__ import annotations
@@ -72,6 +87,15 @@ class Simulator:
         ``DailyPlan`` objects, one per simulated day, of length
         exactly ``config.days``, for scenarios where intake or
         activity varies day to day.
+    initial_glycogen_g:
+        The subject's starting glycogen store, in grams, if glycogen
+        tracking is desired; ``None`` (default) disables it. See
+        module docstring's "Glycogen tracking" section.
+    initial_reference_carbohydrate_intake_g:
+        The subject's starting carbohydrate-oxidation reference
+        level, in grams. Only meaningful when ``initial_glycogen_g``
+        is provided; if omitted in that case, defaults to the first
+        day's planned carbohydrate intake.
 
     Raises
     ------
@@ -85,9 +109,15 @@ class Simulator:
         person: Person,
         config: SimulationConfig,
         daily_plan: DailyPlan | list[DailyPlan],
+        initial_glycogen_g: float | None = None,
+        initial_reference_carbohydrate_intake_g: float | None = None,
     ) -> None:
         self.person = person
         self.config = config
+        self.initial_glycogen_g = initial_glycogen_g
+        self.initial_reference_carbohydrate_intake_g = (
+            initial_reference_carbohydrate_intake_g
+        )
 
         if isinstance(daily_plan, list):
             if len(daily_plan) != config.days:
@@ -116,6 +146,22 @@ class Simulator:
         # has a known body_fat_percent -- reusing the Person.fat_mass_kg
         # computed property from Phase 3 to seed the initial value.
         current_fat_mass_kg = self.person.fat_mass_kg
+
+        # Glycogen tracking (Phase 12) activates iff initial_glycogen_g
+        # was provided. The reference carbohydrate-oxidation estimate
+        # defaults to day 0's own planned carbohydrate intake if not
+        # explicitly seeded -- see module docstring.
+        current_glycogen_g = self.initial_glycogen_g
+        current_reference_carbohydrate_intake_g = (
+            self.initial_reference_carbohydrate_intake_g
+        )
+        if (
+            current_glycogen_g is not None
+            and current_reference_carbohydrate_intake_g is None
+        ):
+            current_reference_carbohydrate_intake_g = self.daily_plans[
+                0
+            ].macros.carbohydrate_g
 
         states: list[SimulationState] = []
 
@@ -146,11 +192,19 @@ class Simulator:
                 config=self.config,
                 state_date=state_date,
                 current_fat_mass_kg=current_fat_mass_kg,
+                current_glycogen_g=current_glycogen_g,
+                current_reference_carbohydrate_intake_g=(
+                    current_reference_carbohydrate_intake_g
+                ),
             )
             states.append(result.state)
 
             if day_index < self.config.days:
                 current_weight_kg += result.mass_change_rate_kg_per_day
                 current_fat_mass_kg = result.next_fat_mass_kg
+                current_glycogen_g = result.next_glycogen_g
+                current_reference_carbohydrate_intake_g = (
+                    result.next_reference_carbohydrate_intake_g
+                )
 
         return states
