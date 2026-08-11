@@ -3,11 +3,10 @@ metabosim.simulation.stepper
 ===============================
 
 The single-timestep state transition: given a subject's current
-weight (and, optionally, current fat mass), a day's diet + activity
-plan, and a ``SimulationConfig``, compute that day's
-``SimulationState`` plus the mass-change rate (and, if tracking body
-composition, the next fat/lean mass split) to apply to obtain
-tomorrow's state.
+weight (and, optionally, current fat mass and/or glycogen), a day's
+diet + activity plan, and a ``SimulationConfig``, compute that day's
+``SimulationState`` plus the information needed to advance to the
+next day.
 
 This is a pure function, independent of ``metabosim.simulation.engine``,
 so it can be unit-tested in complete isolation from the day-by-day
@@ -57,6 +56,35 @@ exactly the relationship anticipated by
 docstrings since Phase 3. The default model (``"none"``) always
 returns zero, so ``energy_expenditure_kcal`` equals ``tdee_kcal``
 unless a different model is explicitly configured.
+
+Glycogen tracking (Phase 12)
+---------------------------------------------------------------------
+Whether this step tracks glycogen is determined entirely by whether
+the caller passes ``current_glycogen_g`` (not ``None``) -- independent
+of whether body composition is being tracked. When tracking, this
+step:
+
+1. Computes today's glycogen change via carbohydrate mass balance
+   (``metabosim.models.macronutrient.glycogen.step_glycogen_g``) and
+   converts that change to a mass-in-kilograms "glycogen transient"
+   using the cited hydration coefficient.
+2. Adds that transient directly to the day's total mass-change rate
+   (``mass_change_rate_kg_per_day``) -- separately from, and in
+   addition to, whatever the configured energy balance model
+   computes from the day's caloric balance.
+3. If body composition is also being tracked, attributes the entire
+   transient to lean mass (never fat), following the convention that
+   glycogen and its water are part of fat-free mass (Chow & Hall,
+   2008) -- see ``metabosim.domain.simulation_state.SimulationState``
+   field docstrings for the same convention stated there.
+
+This does not double-count against the Forbes-based fat/lean
+partitioning: that partitioning is applied only to the *energy-
+balance-driven* portion of the day's mass change, never to the
+glycogen transient, which is added afterward. See
+``metabosim.models.macronutrient.glycogen`` module docstring for why
+this transient and the existing long-run fat/lean machinery are
+complementary rather than overlapping.
 """
 
 from __future__ import annotations
@@ -78,6 +106,12 @@ from metabosim.models.energy_balance.registry import (
 from metabosim.models.energy_balance.tissue_energy_density import (
     TissueEnergyDensityModel,
 )
+from metabosim.models.macronutrient.glycogen import (
+    GLYCOGEN_WATER_RATIO,
+    glycogen_and_water_kg,
+    step_glycogen_g,
+    step_reference_carbohydrate_intake_g,
+)
 from metabosim.models.tdee.calculator import calculate_tdee_from_components
 from metabosim.simulation.config import DailyPlan, SimulationConfig
 
@@ -91,19 +125,27 @@ class StepResult(NamedTuple):
         This day's computed ``SimulationState``.
     mass_change_rate_kg_per_day:
         The total mass-change rate (kg/day) to add to the current
-        weight to obtain the next day's starting weight.
+        weight to obtain the next day's starting weight. Includes any
+        glycogen transient (Phase 12) in addition to the energy-
+        balance-driven rate.
     next_fat_mass_kg, next_lean_mass_kg:
         The next day's fat mass and lean mass, if body composition is
         being tracked (see module docstring); both ``None`` otherwise.
         When not ``None``, they always sum to
         ``current_weight_kg + mass_change_rate_kg_per_day`` (up to
         floating-point rounding).
+    next_glycogen_g, next_reference_carbohydrate_intake_g:
+        The next day's glycogen store and carbohydrate-oxidation
+        reference level, if glycogen is being tracked; both ``None``
+        otherwise.
     """
 
     state: SimulationState
     mass_change_rate_kg_per_day: float
     next_fat_mass_kg: float | None
     next_lean_mass_kg: float | None
+    next_glycogen_g: float | None
+    next_reference_carbohydrate_intake_g: float | None
 
 
 def step(
@@ -115,6 +157,8 @@ def step(
     config: SimulationConfig,
     state_date: date_type | None = None,
     current_fat_mass_kg: float | None = None,
+    current_glycogen_g: float | None = None,
+    current_reference_carbohydrate_intake_g: float | None = None,
 ) -> StepResult:
     """Compute one day's ``SimulationState`` and the information
     needed to advance to the next day.
@@ -148,12 +192,25 @@ def step(
         The subject's fat mass at the start of this simulated day, if
         body composition is being tracked; ``None`` otherwise (the
         Phase 9 behavior). See module docstring.
+    current_glycogen_g:
+        The subject's glycogen store at the start of this simulated
+        day, if glycogen is being tracked; ``None`` otherwise. See
+        module docstring's "Glycogen tracking" section. Requires
+        ``current_reference_carbohydrate_intake_g`` to also be
+        provided.
+    current_reference_carbohydrate_intake_g:
+        The current estimated carbohydrate-oxidation reference level,
+        in grams -- see
+        ``metabosim.models.macronutrient.glycogen.step_reference_carbohydrate_intake_g``.
+        Required (and only meaningful) when ``current_glycogen_g`` is
+        provided.
 
     Returns
     -------
     StepResult
         This day's state, the mass-change rate, and (if tracking body
-        composition) the next day's fat/lean mass split.
+        composition and/or glycogen) the next day's fat/lean mass
+        split and glycogen state.
 
     Raises
     ------
@@ -161,12 +218,25 @@ def step(
         If ``config.energy_balance_model_id`` resolves to a model with
         ``includes_weight_dependent_feedback = True`` (would
         double-count the feedback this stepper's real per-day BMR
-        recompute already supplies). In normal use this is caught
-        earlier, at ``SimulationConfig`` construction time; this check
-        is defense-in-depth for callers who bypass that validation.
+        recompute already supplies); or if exactly one of
+        ``current_glycogen_g`` /
+        ``current_reference_carbohydrate_intake_g`` was provided
+        without the other. In normal use the former is caught
+        earlier, at ``SimulationConfig`` construction time; both
+        checks here are defense-in-depth for callers who bypass that
+        validation or call this function directly.
     KeyError
         If any configured model ID is not registered.
     """
+    if (current_glycogen_g is None) != (
+        current_reference_carbohydrate_intake_g is None
+    ):
+        raise ValueError(
+            "current_glycogen_g and current_reference_carbohydrate_intake_g "
+            "must both be provided, or both omitted -- received one without "
+            "the other."
+        )
+
     energy_balance_model = get_energy_balance_model(config.energy_balance_model_id)
     if energy_balance_model.includes_weight_dependent_feedback:
         raise ValueError(
@@ -219,12 +289,41 @@ def step(
     intake_kcal = plan.macros.energy_kcal
     balance_kcal = intake_kcal - effective_expenditure_kcal
 
+    # Glycogen tracking (Phase 12): computed independently of the
+    # energy-balance-driven rate below, then added to it afterward --
+    # see module docstring's "Glycogen tracking" section.
+    track_glycogen = current_glycogen_g is not None
+    next_glycogen_g: float | None = None
+    next_reference_carbohydrate_intake_g: float | None = None
+    glycogen_transient_kg = 0.0
+    if track_glycogen:
+        assert current_glycogen_g is not None  # narrows type for mypy
+        assert current_reference_carbohydrate_intake_g is not None
+        carbohydrate_intake_g_today = plan.macros.carbohydrate_g
+        next_glycogen_g = step_glycogen_g(
+            current_glycogen_g,
+            carbohydrate_intake_g_today,
+            current_reference_carbohydrate_intake_g,
+            current_weight_kg,
+        )
+        delta_glycogen_g = next_glycogen_g - current_glycogen_g
+        glycogen_transient_kg = delta_glycogen_g * (1.0 + GLYCOGEN_WATER_RATIO) / 1000.0
+        next_reference_carbohydrate_intake_g = step_reference_carbohydrate_intake_g(
+            current_reference_carbohydrate_intake_g, carbohydrate_intake_g_today
+        )
+
     state = SimulationState(
         day_index=day_index,
         date=state_date,
         weight_kg=current_weight_kg,
         fat_mass_kg=current_fat_mass_kg,
         lean_mass_kg=current_lean_mass_kg,
+        glycogen_g=current_glycogen_g,
+        total_body_water_kg=(
+            glycogen_and_water_kg(current_glycogen_g)
+            if track_glycogen and current_glycogen_g is not None
+            else None
+        ),
         energy_intake_kcal=intake_kcal,
         energy_expenditure_kcal=effective_expenditure_kcal,
         bmr_kcal=tdee_result.bmr_kcal,
@@ -250,9 +349,10 @@ def step(
         )
         rate_energy_balance_model = TissueEnergyDensityModel(ffm_fraction=ffm_fraction)
 
-    rate_kg_per_day = rate_energy_balance_model.mass_change_rate_kg_per_day(
+    base_rate_kg_per_day = rate_energy_balance_model.mass_change_rate_kg_per_day(
         balance_kcal, excess_weight_kg
     )
+    total_rate_kg_per_day = base_rate_kg_per_day + glycogen_transient_kg
 
     next_fat_mass_kg: float | None = None
     next_lean_mass_kg: float | None = None
@@ -264,14 +364,18 @@ def step(
                 config.body_composition_model_id
             )
         delta_fat_kg, delta_lean_kg = body_composition_model.partition_mass_change_kg(
-            rate_kg_per_day, current_fat_mass_kg, current_person.sex
+            base_rate_kg_per_day, current_fat_mass_kg, current_person.sex
         )
         next_fat_mass_kg = current_fat_mass_kg + delta_fat_kg
-        next_lean_mass_kg = current_lean_mass_kg + delta_lean_kg
+        # The glycogen transient is attributed entirely to lean mass,
+        # never fat -- see module docstring point 3.
+        next_lean_mass_kg = current_lean_mass_kg + delta_lean_kg + glycogen_transient_kg
 
     return StepResult(
         state=state,
-        mass_change_rate_kg_per_day=rate_kg_per_day,
+        mass_change_rate_kg_per_day=total_rate_kg_per_day,
         next_fat_mass_kg=next_fat_mass_kg,
         next_lean_mass_kg=next_lean_mass_kg,
+        next_glycogen_g=next_glycogen_g,
+        next_reference_carbohydrate_intake_g=next_reference_carbohydrate_intake_g,
     )
