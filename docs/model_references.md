@@ -165,6 +165,19 @@ an entry here in its module docstring.
 
 ## Macronutrient / organ metabolism (`models.macronutrient`, `models.organ`) — Phases 12-13
 
+- Chow CC, Hall KD. "The Dynamics of Human Body Weight Change."
+  *PLoS Comput Biol.* 2008;4(3):e1000045. (Source of the glycogen
+  hydration coefficient used directly: 2.7 g water per g glycogen;
+  also the justification for why glycogen can be treated as
+  quasi-equilibrium/constant on timescales beyond a few days -- the
+  reduced-model approach this project's Phases 8-11 already
+  correctly use. See ``metabosim.models.macronutrient.glycogen``
+  module docstring.)
+- Iyer S, et al. "Carbohydrate storage in cells: a laboratory
+  activity for the assessment of glycogen stores in biological
+  tissues." *Adv Physiol Educ.* 2024. (~100 g liver + ~400 g skeletal
+  muscle glycogen for a 70 kg reference adult -- the storage-capacity
+  figure used in this project's default.)
 - Frayn KN. *Metabolic Regulation: A Human Perspective.* 3rd ed.
   Wiley-Blackwell; 2010.
 

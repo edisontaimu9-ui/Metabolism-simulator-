@@ -5,6 +5,42 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 12: Macronutrient metabolism
+- `metabosim.models.macronutrient.glycogen` — four pure functions
+  modeling glycogen (and associated water) mass balance:
+  `max_glycogen_g`, `glycogen_and_water_kg`, `step_glycogen_g`,
+  `step_reference_carbohydrate_intake_g`. Cited constants: 2.7 g
+  water per g glycogen and ~500 g storage capacity at 70 kg reference
+  weight (Chow & Hall, 2008; Iyer et al., 2024). Deliberately built
+  without a registry — documented explicitly as not a competing
+  scientific hypothesis, unlike every other model family.
+- `metabosim.simulation.stepper.step()` gained `current_glycogen_g` /
+  `current_reference_carbohydrate_intake_g` parameters, activating
+  glycogen tracking independently of body composition tracking;
+  `StepResult` gained matching `next_*` fields.
+- `metabosim.simulation.engine.Simulator` gained `initial_glycogen_g`
+  / `initial_reference_carbohydrate_intake_g` constructor parameters.
+- `SimulationState.glycogen_g` and `.total_body_water_kg` — present
+  since Phase 3, always `None` until now — finally populated.
+  Clarified (not changed) the `total_body_water_kg` docstring to
+  state explicitly, per Chow & Hall's own convention, that glycogen
+  and its water are informational breakdowns of what's already
+  inside `lean_mass_kg`, not separate additive terms — resolving an
+  ambiguity in the original Phase 3 wording without loosening the
+  validated `fat_mass_kg + lean_mass_kg ≈ weight_kg` invariant.
+- End-to-end validation that a sudden low-carbohydrate diet switch
+  produces a sharp multi-day transient weight drop (~1.1 kg from
+  glycogen+water depletion) that resolves within about a week and
+  hands off cleanly to the existing smooth Forbes/energy-balance
+  trend — the classic "water weight" phenomenon, reproduced without
+  having been tuned to hit any particular number.
+- 37 new unit/integration tests (24 for `models.macronutrient`, 7 new
+  in `test_stepper.py`, 6 new in `test_engine.py`); 428 tests total
+  project-wide, 99% overall coverage; `mypy --strict`, `black`,
+  `ruff`, and all doctests clean.
+- `docs/phase_notes/phase_12.md`; `docs/model_references.md` updated
+  with full Chow & Hall / Iyer et al. citations.
+
 ### Added — Phase 11: Adaptive thermogenesis
 - `metabosim.models.adaptive_thermogenesis.base.AdaptiveThermogenesisModel`
   — abstract strategy interface.
