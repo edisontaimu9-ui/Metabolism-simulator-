@@ -178,6 +178,25 @@ an entry here in its module docstring.
   tissues." *Adv Physiol Educ.* 2024. (~100 g liver + ~400 g skeletal
   muscle glycogen for a 70 kg reference adult -- the storage-capacity
   figure used in this project's default.)
+- Elia M. "Organ and tissue contribution to metabolic rate." In:
+  Kinney JM, Tucker HN, eds. *Energy Metabolism: Tissue Determinants
+  and Cellular Corollaries.* Raven Press; 1992:61-80. (Specific
+  metabolic rates -- Ki, kcal/kg/day -- for brain, liver, heart,
+  kidneys, skeletal muscle, adipose tissue, and residual mass; used
+  directly in ``metabosim.models.organ.elia``.)
+- Wang Z, Ying Z, Bosy-Westphal A, et al. "Specific metabolic rates of
+  major organs and tissues across adulthood: evaluation by
+  mechanistic model of resting energy expenditure." *Am J Clin Nutr.*
+  2010;92(6):1369-1377. (Age-adjusted Ki values for adults over 50,
+  used automatically by ``metabosim.models.organ.elia`` for older
+  subjects.)
+- Molina DK, DiMaio VJ. "Normal organ weights in men: part I -- the
+  heart." *Am J Forensic Med Pathol.* 2012;33(4):362-367; and "...
+  part II -- the brain, lungs, liver, spleen, and kidneys."
+  *Am J Forensic Med Pathol.* 2012;33(4):368-372. (Peer-reviewed
+  autopsy-derived reference organ masses -- brain, liver, heart,
+  kidneys -- used as the fixed reference masses in
+  ``metabosim.models.organ.elia``.)
 - Frayn KN. *Metabolic Regulation: A Human Perspective.* 3rd ed.
   Wiley-Blackwell; 2010.
 

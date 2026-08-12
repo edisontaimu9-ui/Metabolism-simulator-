@@ -5,6 +5,34 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 13: Organ metabolism
+- `metabosim.models.organ.elia.calculate_organ_bmr_breakdown_kcal` —
+  decomposes whole-body BMR into brain, liver, heart, kidneys,
+  residual lean tissue, and adipose tissue contributions, using
+  Elia's (1992) specific metabolic rates and peer-reviewed reference
+  organ masses (Molina & DiMaio, 2012). Automatically uses
+  age-adjusted rates (Wang et al., 2010) for subjects over 50.
+  Deliberately built without a registry, following the Phase 12
+  precedent — Elia's Ki table is a cited dataset, not a competing
+  hypothesis.
+- `metabosim.models.bmr.elia_organ_based.EliaOrganBasedBMR` — exposes
+  the organ breakdown as a fifth selectable `BMRModel`, registered as
+  `"elia_organ_based"` alongside Mifflin-St Jeor, Harris-Benedict,
+  Katch-McArdle, and Cunningham — usable anywhere those are,
+  including `SimulationConfig.bmr_model_id`, with zero changes to any
+  existing simulation machinery.
+- Cross-validated against Mifflin-St Jeor for the project's standard
+  worked example: 1726.7 kcal (organ-based) vs. 1780.0 kcal
+  (Mifflin-St Jeor), ~3% apart — two independently-derived methods
+  agreeing to a sensible margin, verified by a dedicated test.
+- 24 new unit tests (18 for `models.organ`, 6 for the new BMR model),
+  plus updates to the existing BMR registry and cross-model
+  plausibility test suites; 455 tests total project-wide, 99%
+  overall coverage; `mypy --strict`, `black`, `ruff`, and all
+  doctests clean.
+- `docs/phase_notes/phase_13.md`; `docs/model_references.md` updated
+  with full Elia / Wang et al. / Molina & DiMaio citations.
+
 ### Added — Phase 12: Macronutrient metabolism
 - `metabosim.models.macronutrient.glycogen` — four pure functions
   modeling glycogen (and associated water) mass balance:
