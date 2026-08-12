@@ -13,12 +13,13 @@ import pytest
 from metabosim.domain.enums import Sex
 from metabosim.domain.person import Person
 from metabosim.models.bmr.cunningham import CunninghamBMR
+from metabosim.models.bmr.elia_organ_based import EliaOrganBasedBMR
 from metabosim.models.bmr.harris_benedict import HarrisBenedictBMR
 from metabosim.models.bmr.katch_mcardle import KatchMcArdleBMR
 from metabosim.models.bmr.mifflin_st_jeor import MifflinStJeorBMR
 
 _WEIGHT_INDEPENDENT_MODELS = [MifflinStJeorBMR, HarrisBenedictBMR]
-_LEAN_MASS_MODELS = [KatchMcArdleBMR, CunninghamBMR]
+_LEAN_MASS_MODELS = [KatchMcArdleBMR, CunninghamBMR, EliaOrganBasedBMR]
 _ALL_MODELS = _WEIGHT_INDEPENDENT_MODELS + _LEAN_MASS_MODELS
 
 

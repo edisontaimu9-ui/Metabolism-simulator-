@@ -10,12 +10,13 @@ from metabosim.models.bmr.registry import get_model, list_models, register_model
 
 @pytest.mark.unit
 class TestListModels:
-    def test_contains_all_four_built_in_models(self) -> None:
+    def test_contains_all_five_built_in_models(self) -> None:
         expected = {
             "mifflin_st_jeor",
             "harris_benedict",
             "katch_mcardle",
             "cunningham",
+            "elia_organ_based",
         }
         assert expected.issubset(set(list_models()))
 
