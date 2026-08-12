@@ -16,8 +16,13 @@ citation and documented limitations:
     ``Person.body_fat_percent``.
   - ``cunningham``       -- Cunningham (1980); lean-mass-based,
     **requires** ``Person.body_fat_percent``.
+  - ``elia_organ_based`` -- Elia (1992) organ-based bottom-up
+    estimate (Phase 13); lean-mass-based, **requires**
+    ``Person.body_fat_percent``. See
+    ``metabosim.models.organ.elia`` for the underlying per-organ
+    decomposition this delegates to.
 
-All four implement the common ``BMRModel`` interface (``base.py``) and
+All five implement the common ``BMRModel`` interface (``base.py``) and
 are selectable at runtime by string ID via ``registry.get_model()``.
 
 Example
@@ -32,6 +37,7 @@ Example
 
 from metabosim.models.bmr.base import BMRModel
 from metabosim.models.bmr.cunningham import CunninghamBMR
+from metabosim.models.bmr.elia_organ_based import EliaOrganBasedBMR
 from metabosim.models.bmr.harris_benedict import HarrisBenedictBMR
 from metabosim.models.bmr.katch_mcardle import KatchMcArdleBMR
 from metabosim.models.bmr.mifflin_st_jeor import MifflinStJeorBMR
@@ -40,6 +46,7 @@ from metabosim.models.bmr.registry import get_model, list_models, register_model
 __all__ = [
     "BMRModel",
     "CunninghamBMR",
+    "EliaOrganBasedBMR",
     "HarrisBenedictBMR",
     "KatchMcArdleBMR",
     "MifflinStJeorBMR",

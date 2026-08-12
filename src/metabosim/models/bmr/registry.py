@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from metabosim.models.bmr.base import BMRModel
 from metabosim.models.bmr.cunningham import CunninghamBMR
+from metabosim.models.bmr.elia_organ_based import EliaOrganBasedBMR
 from metabosim.models.bmr.harris_benedict import HarrisBenedictBMR
 from metabosim.models.bmr.katch_mcardle import KatchMcArdleBMR
 from metabosim.models.bmr.mifflin_st_jeor import MifflinStJeorBMR
@@ -29,6 +30,7 @@ _REGISTRY: dict[str, type[BMRModel]] = {
     "harris_benedict": HarrisBenedictBMR,
     "katch_mcardle": KatchMcArdleBMR,
     "cunningham": CunninghamBMR,
+    "elia_organ_based": EliaOrganBasedBMR,
 }
 
 
