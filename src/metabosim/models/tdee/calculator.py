@@ -13,6 +13,17 @@ scientific logic of its own, only wiring -- so that Phase 4's BMR
 equations and Phase 5's TDEE strategies remain independently testable
 and swappable, per the Strategy-pattern architecture in
 ``docs/architecture.md``.
+
+Accepting a pre-built BMR model (Phase 14)
+---------------------------------------------------------------------
+``bmr_model_id`` on both functions in this module accepts either a
+registry string ID (as in every prior phase) or an already-constructed
+``BMRModel`` instance. This is what lets a
+``metabosim.models.disease.DiseaseModifiedBMRModel`` -- which cannot
+be described by a simple string ID, since it wraps a base model with
+runtime-constructed disease modifiers -- be used anywhere a plain
+equation-based model could be, with no change to any existing
+string-based call site (they continue to work identically).
 """
 
 from __future__ import annotations
@@ -24,6 +35,7 @@ from pydantic import BaseModel, ConfigDict
 from metabosim.domain.diet import MacronutrientGrams
 from metabosim.domain.person import Person
 from metabosim.models.activity.registry import get_model as get_activity_model
+from metabosim.models.bmr.base import BMRModel
 from metabosim.models.bmr.registry import get_model as get_bmr_model
 from metabosim.models.tdee.registry import get_model as get_tdee_model
 from metabosim.models.tef.registry import get_model as get_tef_model
@@ -50,6 +62,22 @@ DEFAULT_ACTIVITY_MODEL_ID: str = "met_based"
 #: Default TEF model ID used by ``calculate_tdee_from_components``.
 DEFAULT_TEF_MODEL_ID: str = "macronutrient_specific"
 
+#: The ``bmr_model_id`` value stored on result objects when the caller
+#: passed a pre-built ``BMRModel`` instance rather than a registry
+#: string ID (Phase 14) -- there is no ID to report in that case.
+CUSTOM_BMR_MODEL_ID: str = "custom"
+
+
+def _resolve_bmr_model(bmr_model: str | BMRModel) -> tuple[BMRModel, str]:
+    """Resolve ``bmr_model`` (a registry string ID or a pre-built
+    ``BMRModel`` instance) to ``(model_instance, id_for_reporting)``.
+
+    See module docstring, "Accepting a pre-built BMR model."
+    """
+    if isinstance(bmr_model, str):
+        return get_bmr_model(bmr_model), bmr_model
+    return bmr_model, CUSTOM_BMR_MODEL_ID
+
 
 class TDEEResult(BaseModel):
     """The fully-explained output of :func:`calculate_tdee`.
@@ -75,7 +103,7 @@ class TDEEResult(BaseModel):
 
 def calculate_tdee(
     person: Person,
-    bmr_model_id: str = DEFAULT_BMR_MODEL_ID,
+    bmr_model_id: str | BMRModel = DEFAULT_BMR_MODEL_ID,
     tdee_model_id: str = DEFAULT_TDEE_MODEL_ID,
 ) -> TDEEResult:
     """Calculate Total Daily Energy Expenditure for ``person``.
@@ -92,9 +120,12 @@ def calculate_tdee(
     bmr_model_id:
         A key registered in ``metabosim.models.bmr.registry``, e.g.
         ``"mifflin_st_jeor"``, ``"harris_benedict"``,
-        ``"katch_mcardle"``, ``"cunningham"``. Note that the
-        lean-mass-based equations require ``person.body_fat_percent``
-        to be set; see ``metabosim.models.bmr`` for details.
+        ``"katch_mcardle"``, ``"cunningham"``, ``"elia_organ_based"``
+        -- or a pre-built ``BMRModel`` instance (e.g. a
+        ``metabosim.models.disease.DiseaseModifiedBMRModel``; Phase
+        14). Note that the lean-mass-based equations require
+        ``person.body_fat_percent`` to be set; see
+        ``metabosim.models.bmr`` for details.
     tdee_model_id:
         A key registered in ``metabosim.models.tdee.registry``, e.g.
         ``"pal_multiplier"``.
@@ -103,7 +134,9 @@ def calculate_tdee(
     -------
     TDEEResult
         The BMR figure, the TDEE figure, and the identifying names of
-        both strategies used.
+        both strategies used. ``bmr_model_id`` on the result is
+        ``"custom"`` when a pre-built ``BMRModel`` instance was
+        passed in, since there is no registry ID to report.
 
     Raises
     ------
@@ -126,7 +159,7 @@ def calculate_tdee(
     >>> round(result.tdee_kcal, 2)
     2759.0
     """
-    bmr_model = get_bmr_model(bmr_model_id)
+    bmr_model, resolved_bmr_model_id = _resolve_bmr_model(bmr_model_id)
     bmr_kcal = bmr_model.calculate(person)
 
     tdee_model = get_tdee_model(tdee_model_id)
@@ -135,7 +168,7 @@ def calculate_tdee(
     return TDEEResult(
         bmr_kcal=bmr_kcal,
         tdee_kcal=tdee_kcal,
-        bmr_model_id=bmr_model_id,
+        bmr_model_id=resolved_bmr_model_id,
         bmr_model_name=bmr_model.name,
         tdee_model_id=tdee_model_id,
         tdee_model_name=tdee_model.name,
@@ -173,7 +206,7 @@ class ComponentTDEEResult(BaseModel):
 def calculate_tdee_from_components(
     person: Person,
     macros: MacronutrientGrams,
-    bmr_model_id: str = DEFAULT_BMR_MODEL_ID,
+    bmr_model_id: str | BMRModel = DEFAULT_BMR_MODEL_ID,
     activity_model_id: str = DEFAULT_ACTIVITY_MODEL_ID,
     activity_model_kwargs: dict[str, Any] | None = None,
     tef_model_id: str = DEFAULT_TEF_MODEL_ID,
@@ -207,7 +240,10 @@ def calculate_tdee_from_components(
         The macronutrient composition of the intake being evaluated,
         used to compute the TEF component.
     bmr_model_id:
-        A key registered in ``metabosim.models.bmr.registry``.
+        A key registered in ``metabosim.models.bmr.registry`` -- or a
+        pre-built ``BMRModel`` instance (e.g. a
+        ``metabosim.models.disease.DiseaseModifiedBMRModel``; Phase
+        14). See module docstring, "Accepting a pre-built BMR model."
     activity_model_id:
         A key registered in ``metabosim.models.activity.registry``.
         Must resolve to a model with ``includes_average_tef = False``
@@ -223,7 +259,9 @@ def calculate_tdee_from_components(
     -------
     ComponentTDEEResult
         Each component figure, the summed TDEE, and the identifying
-        names of all three strategies used.
+        names of all three strategies used. ``bmr_model_id`` on the
+        result is ``"custom"`` when a pre-built ``BMRModel`` instance
+        was passed in, since there is no registry ID to report.
 
     Raises
     ------
@@ -261,7 +299,7 @@ def calculate_tdee_from_components(
     >>> round(result.tdee_kcal, 1)
     2438.9
     """
-    bmr_model = get_bmr_model(bmr_model_id)
+    bmr_model, resolved_bmr_model_id = _resolve_bmr_model(bmr_model_id)
     bmr_kcal = bmr_model.calculate(person)
 
     activity_model = get_activity_model(
@@ -290,7 +328,7 @@ def calculate_tdee_from_components(
         activity_kcal=activity_kcal,
         tef_kcal=tef_kcal,
         tdee_kcal=tdee_kcal,
-        bmr_model_id=bmr_model_id,
+        bmr_model_id=resolved_bmr_model_id,
         bmr_model_name=bmr_model.name,
         activity_model_id=activity_model_id,
         activity_model_name=activity_model.name,
