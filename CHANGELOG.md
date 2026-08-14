@@ -5,6 +5,34 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 14: Disease modules
+- `metabosim.models.disease.base.DiseaseModifier` — adjustment-logic
+  interface, and `DiseaseModifiedBMRModel` — the Decorator composing
+  any `BMRModel` with one or more modifiers into a single, fully
+  substitutable `BMRModel`. Realizes the extensibility point promised
+  by `docs/architecture.md` since Phase 1.
+- `metabosim.models.disease.thyroid.ThyroidModifier` + `ThyroidStatus`
+  — 7-tier severity-graded BMR adjustment (−10% to −35% hypothyroid,
+  +15% to +50% hyperthyroid), calibrated to McCullagh (1938)'s
+  classical clinical BMR-percentage framework.
+- `metabosim.models.disease.body_temperature.BodyTemperatureModifier`
+  — ±13% BMR change per °C deviation from 37°C, applied
+  bidirectionally (fever/hypothermia), cited to DuBois (1937).
+- `metabosim.models.disease.registry` — kwargs-forwarding model
+  lookup, mirroring `models.activity.registry`.
+- `metabosim.models.tdee.calculator.calculate_tdee()` and
+  `calculate_tdee_from_components()` now accept `bmr_model_id` as
+  either a registry string (unchanged, fully backward compatible) or
+  a pre-built `BMRModel` instance — making disease-modified models
+  usable throughout the existing TDEE pipeline with zero changes
+  needed anywhere else. New `CUSTOM_BMR_MODEL_ID = "custom"` sentinel
+  reported when an instance is passed.
+- 50 new unit tests (46 for `models.disease`, 4 for the calculator
+  extension); 505 tests total project-wide, 99% overall coverage;
+  `mypy --strict`, `black`, `ruff`, and all doctests clean.
+- `docs/phase_notes/phase_14.md`; `docs/model_references.md` updated
+  with full McCullagh / DuBois citations.
+
 ### Added — Phase 13: Organ metabolism
 - `metabosim.models.organ.elia.calculate_organ_bmr_breakdown_kcal` —
   decomposes whole-body BMR into brain, liver, heart, kidneys,

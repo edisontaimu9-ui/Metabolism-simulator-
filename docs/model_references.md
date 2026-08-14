@@ -200,6 +200,20 @@ an entry here in its module docstring.
 - Frayn KN. *Metabolic Regulation: A Human Perspective.* 3rd ed.
   Wiley-Blackwell; 2010.
 
+## Disease modules (`models.disease`) — Phase 14
+
+- McCullagh EP. "Some clinical considerations of basal metabolism."
+  *Cleve Clin J Med.* 1938;5(2):108-115. (Classical clinical BMR-
+  percentage framework for thyroid dysfunction: overt hypothyroidism/
+  myxedema below -20% of predicted; hyperthyroidism typically +14% to
+  +22%. Basis for the severity-graded adjustment fractions in
+  ``metabosim.models.disease.thyroid``.)
+- DuBois EF. *Fever and the Regulation of Body Temperature.*
+  Springfield, IL: Charles C Thomas; 1937. (Canonical source for the
+  ~13% metabolic rate increase per degree Celsius of fever, used
+  directly and bidirectionally (fever/hypothermia) in
+  ``metabosim.models.disease.body_temperature``.)
+
 ## Validation datasets — Phase 17
 
 - Digitized data from the sources above will be stored in
