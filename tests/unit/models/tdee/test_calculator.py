@@ -201,3 +201,92 @@ class TestCalculateTDEEFromComponents:
         from metabosim.models.tdee.calculator import DEFAULT_ACTIVITY_MODEL_ID
 
         assert DEFAULT_ACTIVITY_MODEL_ID == "met_based"
+
+
+@pytest.mark.unit
+class TestCalculateTDEEAcceptsPrebuiltBMRModel:
+    """Tests for Phase 14's extension: bmr_model_id may be a pre-built
+    BMRModel instance (e.g. a DiseaseModifiedBMRModel), not only a
+    registry string ID.
+    """
+
+    def test_calculate_tdee_accepts_prebuilt_model(self, moderate_male: Person) -> None:
+        from metabosim.models.bmr.mifflin_st_jeor import MifflinStJeorBMR
+        from metabosim.models.disease import (
+            DiseaseModifiedBMRModel,
+            ThyroidModifier,
+            ThyroidStatus,
+        )
+        from metabosim.models.tdee.calculator import CUSTOM_BMR_MODEL_ID, calculate_tdee
+
+        disease_model = DiseaseModifiedBMRModel(
+            MifflinStJeorBMR(),
+            [ThyroidModifier(status=ThyroidStatus.MODERATE_HYPOTHYROID)],
+        )
+        result = calculate_tdee(moderate_male, bmr_model_id=disease_model)
+        # 1780 * 0.8 = 1424.0
+        assert result.bmr_kcal == pytest.approx(1424.0)
+        assert result.bmr_model_id == CUSTOM_BMR_MODEL_ID
+        assert "Thyroid Dysfunction" in result.bmr_model_name
+
+    def test_calculate_tdee_from_components_accepts_prebuilt_model(
+        self, moderate_male: Person
+    ) -> None:
+        from metabosim.domain.diet import MacronutrientGrams
+        from metabosim.models.bmr.mifflin_st_jeor import MifflinStJeorBMR
+        from metabosim.models.disease import (
+            DiseaseModifiedBMRModel,
+            ThyroidModifier,
+            ThyroidStatus,
+        )
+        from metabosim.models.tdee.calculator import (
+            CUSTOM_BMR_MODEL_ID,
+            calculate_tdee_from_components,
+        )
+
+        disease_model = DiseaseModifiedBMRModel(
+            MifflinStJeorBMR(),
+            [ThyroidModifier(status=ThyroidStatus.MODERATE_HYPOTHYROID)],
+        )
+        macros = MacronutrientGrams(protein_g=100, carbohydrate_g=200, fat_g=60)
+        result = calculate_tdee_from_components(
+            moderate_male,
+            macros,
+            bmr_model_id=disease_model,
+            activity_model_kwargs={"entries": []},
+        )
+        assert result.bmr_kcal == pytest.approx(1424.0)
+        assert result.bmr_model_id == CUSTOM_BMR_MODEL_ID
+
+    def test_string_bmr_model_id_still_reports_its_own_id(
+        self, moderate_male: Person
+    ) -> None:
+        # Backward-compatibility check: passing a string must continue
+        # to report that exact string, not "custom".
+        from metabosim.models.tdee.calculator import calculate_tdee
+
+        result = calculate_tdee(moderate_male, bmr_model_id="harris_benedict")
+        assert result.bmr_model_id == "harris_benedict"
+
+    def test_stacked_disease_modifiers_via_prebuilt_model(
+        self, moderate_male: Person
+    ) -> None:
+        from metabosim.models.bmr.mifflin_st_jeor import MifflinStJeorBMR
+        from metabosim.models.disease import (
+            BodyTemperatureModifier,
+            DiseaseModifiedBMRModel,
+            ThyroidModifier,
+            ThyroidStatus,
+        )
+        from metabosim.models.tdee.calculator import calculate_tdee
+
+        disease_model = DiseaseModifiedBMRModel(
+            MifflinStJeorBMR(),
+            [
+                ThyroidModifier(status=ThyroidStatus.MODERATE_HYPOTHYROID),
+                BodyTemperatureModifier(body_temperature_c=39.0),
+            ],
+        )
+        result = calculate_tdee(moderate_male, bmr_model_id=disease_model)
+        # 1780 * 0.8 * 1.26 = 1794.24
+        assert result.bmr_kcal == pytest.approx(1794.24)
