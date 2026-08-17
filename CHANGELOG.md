@@ -5,6 +5,34 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Phase 15: Visualization engine
+- `metabosim.analysis` — minimal supporting infrastructure (not its
+  own roadmap phase, built as Phase 15 dependency; see phase notes):
+  `series.py` (pure time-series extraction + `moving_average`),
+  `summary.py` (`summarize()` / `SimulationSummary` headline
+  statistics).
+- `metabosim.visualization.trajectory` — `plot_weight_trajectory`,
+  `plot_body_composition_trajectory`, `plot_glycogen_trajectory`.
+- `metabosim.visualization.energy` — `plot_energy_intake_vs_expenditure`,
+  `plot_energy_balance` (with optional moving-average overlay).
+- `metabosim.visualization.comparison` — `plot_organ_bmr_breakdown`,
+  `plot_bmr_model_comparison` (all 5 registered BMR equations,
+  side by side, gracefully skipping those requiring
+  `body_fat_percent` when unavailable).
+- All seven plotting functions follow a uniform `ax: Axes | None`
+  composability convention; none call `plt.show()`.
+- Fixed a stale coverage-configuration bug: `pyproject.toml` had
+  excluded `*/visualization/*` from coverage since Phase 1, before
+  any visualization code existed — removed now that a rigorous test
+  suite exists to measure against.
+- 67 new unit tests (30 for `analysis`, 37 for `visualization`), both
+  packages at 100% coverage; 572 tests total project-wide, 99%
+  overall coverage; `mypy --strict`, `black`, `ruff`, and all
+  doctests clean.
+- No new scientific citations this phase (pure engineering/plotting
+  layer over already-validated model output).
+- `docs/phase_notes/phase_15.md`.
+
 ### Added — Phase 14: Disease modules
 - `metabosim.models.disease.base.DiseaseModifier` — adjustment-logic
   interface, and `DiseaseModifiedBMRModel` — the Decorator composing
