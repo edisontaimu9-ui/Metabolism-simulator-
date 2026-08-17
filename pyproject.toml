@@ -77,4 +77,4 @@ markers = [
 
 [tool.coverage.run]
 source = ["src/metabosim"]
-omit = ["*/visualization/*", "*/reports/*", "*/cli/*"]
+omit = ["*/reports/*", "*/cli/*"]
