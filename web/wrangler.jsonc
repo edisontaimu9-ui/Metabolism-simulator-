@@ -1,0 +1,8 @@
+{
+  "name": "metabosim-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "vars": { "METABOSIM_URL": "https://metabosim.chakudya.xyz" }
+}
