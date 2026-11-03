@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [
-    { name = "Your Name" }
+    { name = "Edison Taimu" }
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
