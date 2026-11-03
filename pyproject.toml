@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "metabosim"
-version = "0.1.0"
+version = "0.2.0"
 description = "A modular, extensible Human Metabolism & Energy Expenditure Simulation Engine for research, education, and clinical nutrition."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -13,7 +13,7 @@ authors = [
     { name = "Your Name" }
 ]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Healthcare Industry",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
@@ -48,6 +48,9 @@ metabosim = "metabosim.cli.main:app"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+metabosim = ["py.typed", "validation/datasets/*.json"]
+
 [tool.black]
 line-length = 88
 target-version = ["py312"]
@@ -77,4 +80,3 @@ markers = [
 
 [tool.coverage.run]
 source = ["src/metabosim"]
-omit = ["*/cli/*"]

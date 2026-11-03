@@ -5,6 +5,28 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Phase 18: Command line and packaging
+- `metabosim.cli.main` - standard-library CLI: `models`, `simulate`
+  (optionally writes Markdown/HTML reports), `validate`. `app()` returns
+  the exit status and is the `metabosim` console entry point.
+- `python -m metabosim` support.
+- `py.typed` marker, package-data entry for dataset JSON, version 0.2.0
+  (synced between `pyproject.toml` and `__init__.py`, enforced by a
+  test), Alpha classifier.
+- Removed the `*/cli/*` coverage exclusion.
+- `docs/phase_notes/phase_18.md`.
+
+### Added - Phase 17: Validation against published literature
+- `metabosim.validation.metrics` - `rmse`, `mean_bias`, `max_abs_error`.
+- `metabosim.validation.reference` - `ReferenceCurve` (citation and
+  extraction note required), `load_curve`, `compare_curve`,
+  `check_value`, `ValidationResult`.
+- `metabosim.validation.yoo2018` - plausibility check against the Yoo
+  (2018) worked example (assumed inputs, wide tolerance; see notes).
+- `validation/datasets/README.md` documenting the dataset format.
+- No empirical curve bundled yet; no new scientific citations.
+- `docs/phase_notes/phase_17.md`.
+
 ### Added - Phase 16: Simulation reports
 - `metabosim.reports.data` - `ReportData` / `build_report_data()`:
   bundles a `Simulator`, its state history, and the headline summary;

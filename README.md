@@ -6,7 +6,9 @@ A scientific software package for simulating human metabolism *dynamically
 over time* — not a simple calorie calculator. Built for research,
 education, and clinical nutrition applications.
 
-> Status: **Phase 16 of 18 complete — Simulation reports.**
+> Status: **All 18 planned phases complete (version 0.2.0, alpha).**
+> Validation currently rests on one plausibility check; see
+> `docs/phase_notes/phase_17.md`.
 > See `docs/phase_notes/` for the design log of every completed phase.
 
 ## Why this exists
@@ -66,6 +68,15 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pre-commit install
+```
+
+## Command line
+
+```bash
+metabosim models
+metabosim simulate --sex male --age 30 --height 180 --weight 80 \
+  --protein 150 --carbs 300 --fat 70 --days 90 --out reports_out/demo
+metabosim validate
 ```
 
 ## Running tests
