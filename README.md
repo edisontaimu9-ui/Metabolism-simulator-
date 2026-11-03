@@ -6,7 +6,7 @@ A scientific software package for simulating human metabolism *dynamically
 over time* — not a simple calorie calculator. Built for research,
 education, and clinical nutrition applications.
 
-> Status: **Phase 2 of 18 — Project setup & folder structure.**
+> Status: **Phase 16 of 18 complete — Simulation reports.**
 > See `docs/phase_notes/` for the design log of every completed phase.
 
 ## Why this exists

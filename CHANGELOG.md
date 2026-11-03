@@ -5,6 +5,31 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Phase 16: Simulation reports
+- `metabosim.reports.data` - `ReportData` / `build_report_data()`:
+  bundles a `Simulator`, its state history, and the headline summary;
+  rejects mismatched state histories.
+- `metabosim.reports.document` - format-neutral document model and
+  `build_document()` (subject, models used, diet and activity, key
+  results, figures, daily results, limitations, references).
+- `metabosim.reports.render` - `render_markdown()` and `render_html()`
+  (all text escaped; HTML is self-contained with embedded figures).
+- `metabosim.reports.figures` - `render_figures()`: Phase 15 plots as PNG
+  bytes, drawn without pyplot or a display.
+- `metabosim.reports.references` - per-model citations, so each report
+  cites only the models the run used.
+- `metabosim.reports.writers` - `save_markdown_report()` and
+  `save_html_report()`.
+- PDF output deferred (see phase notes).
+- Fixed a stale coverage-configuration bug: removed `*/reports/*` from
+  the coverage `omit` list in `pyproject.toml`.
+- Updated the stale README status line.
+- 82 new unit tests, `metabosim.reports` at 100% coverage; 654 tests
+  total, 99% overall coverage; `mypy --strict`, `black`, `ruff`, and
+  doctests clean.
+- No new scientific citations this phase.
+- `docs/phase_notes/phase_16.md`.
+
 ### Added — Phase 15: Visualization engine
 - `metabosim.analysis` — minimal supporting infrastructure (not its
   own roadmap phase, built as Phase 15 dependency; see phase notes):
