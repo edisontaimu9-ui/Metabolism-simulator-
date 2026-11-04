@@ -9,8 +9,8 @@ type Result = {
   weight_kg: number[];
 };
 
-const field = { display: "flex", flexDirection: "column", gap: 4, fontSize: 13 } as const;
-const input = { padding: 10, fontSize: 16, border: "1px solid #c9d1cb", borderRadius: 8 } as const;
+const field = { display: "flex", flexDirection: "column", gap: 4, fontSize: 13, minWidth: 0 } as const;
+const input = { padding: 10, fontSize: 16, border: "1px solid #c9d1cb", borderRadius: 8, width: "100%", minWidth: 0, boxSizing: "border-box" } as const;
 
 function Chart({ data }: { data: number[] }) {
   const W = 600, H = 260, P = 40;
@@ -75,7 +75,7 @@ export default function Home() {
   return (
     <main style={{ maxWidth: 680, margin: "0 auto", padding: 16 }}>
       <h1 style={{ fontSize: 24 }}>Metabolism Simulator</h1>
-      <form onSubmit={run} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <form onSubmit={run} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
         <label style={field}>Sex
           <select style={input} value={f.sex} onChange={set("sex")}>
             <option value="male">Male</option><option value="female">Female</option>
@@ -86,7 +86,7 @@ export default function Home() {
           <label key={k} style={field}>{label}
             <input style={input} inputMode="decimal" value={f[k]} onChange={set(k)} required /></label>
         ))}
-        <button disabled={busy} style={{ gridColumn: "1 / -1", padding: 14, fontSize: 16, border: 0,
+        <button disabled={busy} style={{ gridColumn: "1 / -1", padding: 14, boxSizing: "border-box", width: "100%", fontSize: 16, border: 0,
           borderRadius: 10, background: "#2e7d4f", color: "#fff" }}>
           {busy ? "Simulating…" : "Run simulation"}
         </button>
